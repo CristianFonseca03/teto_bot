@@ -14,15 +14,24 @@ import {
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { Command } from '../types';
+import { setConnection, getConnection } from '../voiceManager';
 
 const play: Command = {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Entra al canal de voz, reproduce un audio y se sale')
+    .setDescription('Reproduce un audio en tu canal de voz')
     .addStringOption(option =>
       option
         .setName('archivo')
         .setDescription('Nombre del archivo en la carpeta assets/ (ej: audio.mp3)')
+        .setRequired(false)
+    )
+    .addIntegerOption(option =>
+      option
+        .setName('volumen')
+        .setDescription('Volumen del audio de 0 a 100 (por defecto: 5)')
+        .setMinValue(0)
+        .setMaxValue(100)
         .setRequired(false)
     ) as SlashCommandBuilder,
 
@@ -46,13 +55,21 @@ const play: Command = {
       return;
     }
 
+    const volumePercent = interaction.options.getInteger('volumen') ?? 5;
+    const volume = volumePercent / 100;
+
     await interaction.deferReply();
 
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: voiceChannel.guild.id,
-      adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    });
+    let connection = getConnection(voiceChannel.guild.id);
+
+    if (!connection || connection.state.status === VoiceConnectionStatus.Destroyed) {
+      connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: voiceChannel.guild.id,
+        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+      });
+      setConnection(voiceChannel.guild.id, connection);
+    }
 
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
@@ -63,12 +80,15 @@ const play: Command = {
     }
 
     const player = createAudioPlayer();
-    const resource = createAudioResource(filePath);
+    const resource = createAudioResource(filePath, { inlineVolume: true });
+    resource.volume?.setVolume(volume);
 
     connection.subscribe(player);
     player.play(resource);
 
-    await interaction.editReply(`Reproduciendo \`${fileName}\` en **${voiceChannel.name}**...`);
+    await interaction.editReply(
+      `Reproduciendo \`${fileName}\` en **${voiceChannel.name}** (volumen: ${volumePercent}%)...`
+    );
 
     await new Promise<void>((resolve, reject) => {
       player.once(AudioPlayerStatus.Idle, () => resolve());
@@ -78,8 +98,7 @@ const play: Command = {
       await interaction.editReply('Ocurrió un error al reproducir el audio.');
     });
 
-    connection.destroy();
-    await interaction.editReply(`Reproducción de \`${fileName}\` finalizada.`);
+    await interaction.editReply(`\`${fileName}\` terminó de reproducirse.`);
   },
 };
 
