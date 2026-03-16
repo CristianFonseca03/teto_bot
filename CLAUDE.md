@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Comandos
+## Comandos de desarrollo
 
 ```bash
 npm run dev        # Modo desarrollo con hot reload (tsx watch)
@@ -13,29 +13,69 @@ npm run deploy     # Registrar/actualizar slash commands en Discord
 
 > Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo se necesita al añadir o modificar comandos slash.
 
+## Requisitos del sistema
+
+- Node.js >= 22.12.0 (gestionar con nvm: `nvm use 22`)
+- `yt-dlp` instalado en el sistema: `brew install yt-dlp`
+
 ## Variables de entorno
 
 Crear `.env` basado en `.env.example`:
 - `DISCORD_TOKEN` — token del bot (obligatorio)
 - `CLIENT_ID` — application client ID (obligatorio para deploy)
-- `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; si no está, los comandos se registran globalmente y tardan ~1h en propagarse)
+- `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; sin él, los comandos se registran globalmente y tardan ~1h en propagarse)
 
 ## Arquitectura
 
-El bot usa un sistema de **carga dinámica** para comandos y eventos: `src/index.ts` recorre los directorios `src/commands/` y `src/events/` al iniciar y registra todo automáticamente. Para añadir un nuevo comando o evento, basta con crear el archivo en la carpeta correspondiente.
+### Carga dinámica
+
+`src/index.ts` recorre `src/commands/` y `src/events/` al iniciar y registra todo automáticamente. Para añadir un comando o evento, basta con crear el archivo en la carpeta correspondiente.
+
+### Comandos disponibles
+
+| Comando | Descripción |
+|---|---|
+| `/play <entrada> [volumen]` | Reproduce o encola audio de YouTube (URL o búsqueda) o archivo de `assets/` |
+| `/queue` | Muestra la cola de reproducción actual |
+| `/pause` | Pausa o reanuda la reproducción |
+| `/stop` | Detiene la reproducción y limpia la cola |
+| `/clean` | Limpia la cola sin detener la canción actual |
+| `/shuffle` | Mezcla aleatoriamente las canciones en cola |
+| `/leave` | Desconecta el bot del canal de voz |
+| `/ping` | Comprueba la latencia del bot |
+
+### Sistema de audio (`src/musicManager.ts`)
+
+Módulo singleton que gestiona por guild:
+- **Cola de reproducción** (`queue: Track[]`)
+- **Conexión de voz** (`VoiceConnection`)
+- **Reproductor** (`AudioPlayer`)
+- **Estado actual** (canción en curso, volumen, canal de texto)
+
+Flujo de reproducción:
+1. `/play` llama a `addTrack()` → resuelve el input (URL YT, búsqueda o archivo local)
+2. Si el player está idle, llama a `playNext()` con `notify: false` (el reply de la interaction ya notifica)
+3. Al terminar una canción, el evento `AudioPlayerStatus.Idle` llama a `playNext()` con `notify: true` (envía embed al canal)
+4. `playNext()` hace spawn de `yt-dlp` para obtener el stream y lo pasa a `createAudioResource` con `StreamType.Arbitrary`
+
+Stack de audio:
+- **`yt-dlp`** (binario del sistema) — streaming real de YouTube
+- **`play-dl`** — búsqueda en YouTube y obtención de metadatos/thumbnails
+- **`@discordjs/voice`** + **`ffmpeg-static`** — reproducción y transcodificación
+- **`opusscript`** — fallback de codificador Opus
 
 ### Estructura de un comando
 
 ```ts
 // src/commands/ejemplo.ts
-import { SlashCommandBuilder, CommandInteraction } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 
 const comando: Command = {
   data: new SlashCommandBuilder()
     .setName('ejemplo')
     .setDescription('Descripción'),
-  async execute(interaction: CommandInteraction) {
+  async execute(interaction: ChatInputCommandInteraction) {
     await interaction.reply('Hola');
   },
 };
@@ -47,11 +87,11 @@ export default comando;
 
 ```ts
 // src/events/nombreEvento.ts
-import { Events, Client } from 'discord.js';
+import { Events } from 'discord.js';
 
 export default {
   name: Events.SomeEvent,
-  once: false, // true si solo debe ejecutarse una vez
+  once: false,
   async execute(...args: any[]) { /* ... */ },
 };
 ```
@@ -59,13 +99,18 @@ export default {
 ### Flujo de interacciones
 
 1. Usuario invoca slash command → Discord emite `interactionCreate`
-2. `src/events/interactionCreate.ts` enruta al handler correspondiente en `client.commands`
-3. Errores son capturados y retornados al usuario como respuesta efímera
-
-### Audio
-
-El comando `/play` usa `@discordjs/voice` + `@discordjs/opus` + `ffmpeg-static`. Los archivos de audio van en `assets/`. El bot se conecta al canal de voz del usuario, reproduce el archivo y se desconecta.
+2. `src/events/interactionCreate.ts` enruta al handler en `client.commands`
+3. Errores son capturados y retornados al usuario como embed efímero
 
 ### Intents activos
 
 Solo `Guilds` y `GuildVoiceStates` (sin privileged intents).
+
+### Embeds y colores
+
+Sistema de colores consistente en todas las respuestas:
+- `0x1db954` verde — reproduciendo / acción positiva
+- `0x5865f2` blurple — informativo / cola
+- `0x57f287` verde claro — éxito
+- `0xfee75c` amarillo — pausa / advertencia
+- `0xed4245` rojo — detenido / error

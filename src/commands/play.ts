@@ -1,30 +1,21 @@
 import {
   ChatInputCommandInteraction,
+  EmbedBuilder,
   GuildMember,
   SlashCommandBuilder,
 } from 'discord.js';
-import {
-  AudioPlayerStatus,
-  createAudioPlayer,
-  createAudioResource,
-  entersState,
-  joinVoiceChannel,
-  VoiceConnectionStatus,
-} from '@discordjs/voice';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { Command } from '../types';
-import { setConnection, getConnection } from '../voiceManager';
+import { addTrack, setVolume, buildNowPlayingEmbed } from '../musicManager';
 
 const play: Command = {
   data: new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Reproduce un audio en tu canal de voz')
+    .setDescription('Reproduce o añade a la cola un audio de YouTube o de assets/')
     .addStringOption(option =>
       option
-        .setName('archivo')
-        .setDescription('Nombre del archivo en la carpeta assets/ (ej: audio.mp3)')
-        .setRequired(false)
+        .setName('entrada')
+        .setDescription('URL de YouTube, término de búsqueda o nombre de archivo en assets/')
+        .setRequired(true)
     )
     .addIntegerOption(option =>
       option
@@ -40,65 +31,41 @@ const play: Command = {
     const voiceChannel = member.voice.channel;
 
     if (!voiceChannel) {
-      await interaction.reply({ content: 'Debes estar en un canal de voz.', ephemeral: true });
-      return;
-    }
-
-    const fileName = interaction.options.getString('archivo') ?? 'audio.mp3';
-    const filePath = join(process.cwd(), 'assets', fileName);
-
-    if (!existsSync(filePath)) {
       await interaction.reply({
-        content: `No se encontró el archivo \`${fileName}\` en la carpeta \`assets/\`.`,
+        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('Debes estar en un canal de voz.')],
         ephemeral: true,
       });
       return;
     }
 
+    const input = interaction.options.getString('entrada', true);
     const volumePercent = interaction.options.getInteger('volumen') ?? 5;
-    const volume = volumePercent / 100;
+    setVolume(interaction.guildId!, volumePercent / 100);
 
     await interaction.deferReply();
 
-    let connection = getConnection(voiceChannel.guild.id);
-
-    if (!connection || connection.state.status === VoiceConnectionStatus.Destroyed) {
-      connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: voiceChannel.guild.id,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-      });
-      setConnection(voiceChannel.guild.id, connection);
-    }
-
     try {
-      await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
-    } catch {
-      connection.destroy();
-      await interaction.editReply('No se pudo conectar al canal de voz.');
-      return;
+      const { track, position } = await addTrack(
+        interaction.guildId!,
+        input,
+        interaction.user.username,
+        voiceChannel,
+        interaction.channel as any,
+      );
+
+      if (position === 0) {
+        await interaction.editReply({ embeds: [buildNowPlayingEmbed(track)] });
+      } else {
+        const embed = buildNowPlayingEmbed(track)
+          .setColor(0x5865f2)
+          .setAuthor({ name: `📋  Añadido a la cola · #${position}` });
+        await interaction.editReply({ embeds: [embed] });
+      }
+    } catch (err: any) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription(`Error: ${err.message}`)],
+      });
     }
-
-    const player = createAudioPlayer();
-    const resource = createAudioResource(filePath, { inlineVolume: true });
-    resource.volume?.setVolume(volume);
-
-    connection.subscribe(player);
-    player.play(resource);
-
-    await interaction.editReply(
-      `Reproduciendo \`${fileName}\` en **${voiceChannel.name}** (volumen: ${volumePercent}%)...`
-    );
-
-    await new Promise<void>((resolve, reject) => {
-      player.once(AudioPlayerStatus.Idle, () => resolve());
-      player.once('error', err => reject(err));
-    }).catch(async err => {
-      console.error('Error al reproducir audio:', err);
-      await interaction.editReply('Ocurrió un error al reproducir el audio.');
-    });
-
-    await interaction.editReply(`\`${fileName}\` terminó de reproducirse.`);
   },
 };
 

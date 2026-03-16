@@ -1,25 +1,27 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
-import { getConnection, removeConnection } from '../voiceManager';
+import { disconnect, getConnection } from '../musicManager';
 
 const leave: Command = {
   data: new SlashCommandBuilder()
     .setName('leave')
-    .setDescription('Desconecta el bot del canal de voz'),
+    .setDescription('Desconecta el bot del canal de voz y limpia la cola'),
 
   async execute(interaction: ChatInputCommandInteraction) {
     const guildId = interaction.guildId!;
-    const connection = getConnection(guildId);
 
-    if (!connection) {
-      await interaction.reply({ content: 'No estoy en ningún canal de voz.', ephemeral: true });
+    if (!getConnection(guildId)) {
+      await interaction.reply({
+        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('No estoy en ningún canal de voz.')],
+        ephemeral: true,
+      });
       return;
     }
 
-    connection.destroy();
-    removeConnection(guildId);
-
-    await interaction.reply('Desconectado del canal de voz.');
+    disconnect(guildId);
+    await interaction.reply({
+      embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('👋  Desconectado. Cola limpiada.')],
+    });
   },
 };
 
