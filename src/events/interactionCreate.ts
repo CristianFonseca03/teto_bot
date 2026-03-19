@@ -6,6 +6,15 @@ export default {
   name: Events.InteractionCreate,
   once: false,
   async execute(interaction: Interaction) {
+    if (interaction.isAutocomplete()) {
+      const client = interaction.client as ExtendedClient;
+      const command = client.commands.get(interaction.commandName);
+      if (command?.autocomplete) {
+        await command.autocomplete(interaction);
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const client = interaction.client as ExtendedClient;

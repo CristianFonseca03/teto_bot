@@ -48,10 +48,11 @@ Editar `.env` con los valores del bot:
 ```env
 DISCORD_TOKEN=tu_token_aqui
 CLIENT_ID=tu_client_id_aqui
-GUILD_ID=id_de_tu_servidor     # opcional, solo para desarrollo
-JOIN_SOUND_URL=assets/teto.mp3 # opcional, audio al entrar al canal
-GIPHY_API_KEY=tu_api_key_aqui  # opcional, necesaria para el comando /gif
-NODE_ENV=development           # opcional, activa pino-pretty en consola
+GUILD_ID=id_de_tu_servidor          # opcional, solo para desarrollo
+JOIN_SOUND_URL=assets/teto.mp3      # opcional, audio al entrar al canal
+GIPHY_API_KEY=tu_api_key_aqui       # opcional, necesaria para el comando /gif
+EXCHANGE_RATE_API_KEY=tu_api_key    # opcional, necesaria para el comando /convert
+NODE_ENV=development                # opcional, activa pino-pretty en consola
 ```
 
 Obtener estos valores desde el [Discord Developer Portal](https://discord.com/developers/applications):
@@ -96,6 +97,7 @@ npm start
 | `/help` | Muestra la lista de comandos disponibles |
 | `/ping` | Comprueba la latencia del bot |
 | `/gif <busqueda>` | Busca y muestra un GIF aleatorio de Giphy (requiere `GIPHY_API_KEY`) |
+| `/convert <monto> <moneda>` | Convierte un monto entre monedas reales (USD, COP, MXN) y meme (GNS, BAL, SLK, SPX, AKC). Incluye autocomplete. Requiere `EXCHANGE_RATE_API_KEY` |
 
 ## Archivos de audio locales
 

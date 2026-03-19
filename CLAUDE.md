@@ -22,6 +22,7 @@ Crear `.env` basado en `.env.example`:
 - `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; sin él, los comandos se registran globalmente y tardan ~1h en propagarse)
 - `JOIN_SOUND_URL` — ruta relativa a `cwd` o URL HTTP del audio que se reproduce al entrar a un canal de voz (ej. `assets/teto.mp3`; opcional)
 - `GIPHY_API_KEY` — API key de Giphy para el comando `/gif` (opcional; sin ella el comando devuelve error)
+- `EXCHANGE_RATE_API_KEY` — API key de [ExchangeRate-API](https://www.exchangerate-api.com) para el comando `/convert` (opcional; sin ella el comando devuelve error)
 - `NODE_ENV` — si es distinto de `production`, el logger usa `pino-pretty` con colores en consola; en producción emite JSON puro
 
 ## Arquitectura
@@ -98,11 +99,18 @@ export default {
 };
 ```
 
+### Autocomplete
+
+Los comandos pueden exponer un handler `autocomplete` opcional en la interfaz `Command` (`src/types.ts`). `src/events/interactionCreate.ts` enruta las interacciones `isAutocomplete()` al handler correspondiente antes del guard `isChatInputCommand()`.
+
+Ejemplo: el comando `/convert` usa autocomplete para filtrar monedas por código o nombre mientras el usuario escribe.
+
 ### Flujo de interacciones
 
 1. Usuario invoca slash command → Discord emite `interactionCreate`
 2. `src/events/interactionCreate.ts` enruta al handler en `client.commands`
-3. Errores son capturados y retornados al usuario como embed efímero; el handler de error está envuelto en try-catch para evitar crashes si el token de interacción ya expiró
+3. Si la interacción es autocomplete, se llama `command.autocomplete()` y se retorna sin logging
+4. Errores son capturados y retornados al usuario como embed efímero; el handler de error está envuelto en try-catch para evitar crashes si el token de interacción ya expiró
 
 ### Intents activos
 
@@ -123,12 +131,23 @@ Cada ejecución de un comando se loguea automáticamente en `src/events/interact
 Los stderr de `yt-dlp` se loguean como `warn` (no son errores fatales del bot).
 La carpeta `logs/` está en `.gitignore`.
 
+### Conversión de monedas (`src/currencies.ts`)
+
+Módulo con datos y lógica de conversión para el comando `/convert`:
+
+- **`CURRENCIES`** — array con 3 monedas reales (USD, COP, MXN) y 5 meme (GNS, BAL, SLK, SPX, AKC)
+- **`fetchRates()`** — obtiene tasas COP y MXN desde ExchangeRate-API v6, con cache en memoria de 1h. Si la API falla y hay cache expirado, lo reutiliza con `logger.warn`
+- **`toUSD(amount, code, rates)`** — convierte cualquier moneda a USD (pivot)
+- **`fromUSD(amountUSD, code, rates)`** — convierte USD a cualquier moneda
+
+Las monedas meme tienen un campo `usdEquivalent` fijo (no dependen de la API).
+
 ### Embeds y colores
 
 Sistema de colores consistente en todas las respuestas:
 
-- `0x1db954` verde — reproduciendo / acción positiva
-- `0x5865f2` blurple — informativo / cola
+- `0x1db954` verde — reproduciendo / acción positiva / moneda real en `/convert`
+- `0x5865f2` blurple — informativo / cola / moneda meme en `/convert`
 - `0x57f287` verde claro — éxito
 - `0xfee75c` amarillo — pausa / advertencia
 - `0xed4245` rojo — detenido / error
