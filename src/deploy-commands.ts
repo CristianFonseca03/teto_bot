@@ -3,6 +3,7 @@ import { readdirSync } from 'fs';
 import { join } from 'path';
 import 'dotenv/config';
 import { Command } from './types';
+import logger from './logger';
 
 const commands = [];
 
@@ -19,16 +20,16 @@ const guildId = process.env.GUILD_ID;
 
 (async () => {
   try {
-    console.log(`Registrando ${commands.length} comando(s)...`);
+    logger.info(`Registrando ${commands.length} comando(s)...`);
 
     if (guildId) {
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-      console.log('Comandos registrados en el servidor (guild) — disponibles de inmediato.');
+      logger.info('Comandos registrados en el servidor (guild) — disponibles de inmediato.');
     } else {
       await rest.put(Routes.applicationCommands(clientId), { body: commands });
-      console.log('Comandos registrados globalmente — pueden tardar hasta 1 hora en propagarse.');
+      logger.info('Comandos registrados globalmente — pueden tardar hasta 1 hora en propagarse.');
     }
   } catch (error) {
-    console.error(error);
+    logger.error({ err: error }, 'Error al registrar comandos');
   }
 })();

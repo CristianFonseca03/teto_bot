@@ -4,12 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Comandos de desarrollo
 
-```bash
-npm run dev        # Modo desarrollo con hot reload (tsx watch)
-npm run build      # Compilar TypeScript a dist/
-npm start          # Ejecutar bot en producción (requiere build previo)
-npm run deploy     # Registrar/actualizar slash commands en Discord
-```
+revisar `package.json` para scripts disponibles.
 
 > Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo se necesita al añadir o modificar comandos slash.
 
@@ -21,10 +16,12 @@ npm run deploy     # Registrar/actualizar slash commands en Discord
 ## Variables de entorno
 
 Crear `.env` basado en `.env.example`:
+
 - `DISCORD_TOKEN` — token del bot (obligatorio)
 - `CLIENT_ID` — application client ID (obligatorio para deploy)
 - `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; sin él, los comandos se registran globalmente y tardan ~1h en propagarse)
 - `JOIN_SOUND_URL` — ruta relativa a `cwd` o URL HTTP del audio que se reproduce al entrar a un canal de voz (ej. `assets/teto.mp3`; opcional)
+- `NODE_ENV` — si es distinto de `production`, el logger usa `pino-pretty` con colores en consola; en producción emite JSON puro
 
 ## Arquitectura
 
@@ -34,28 +31,19 @@ Crear `.env` basado en `.env.example`:
 
 ### Comandos disponibles
 
-| Comando | Descripción |
-|---|---|
-| `/play <entrada> [volumen]` | Reproduce o encola audio de YouTube (URL de video, URL de playlist pública, búsqueda) o archivo de `assets/` |
-| `/queue` | Muestra la cola de reproducción actual |
-| `/skip` | Salta la canción actual y reproduce la siguiente |
-| `/pause` | Pausa o reanuda la reproducción |
-| `/stop` | Detiene la reproducción y limpia la cola |
-| `/clean` | Limpia la cola sin detener la canción actual |
-| `/shuffle` | Mezcla aleatoriamente las canciones en cola |
-| `/leave` | Desconecta el bot del canal de voz |
-| `/help` | Muestra todos los comandos disponibles |
-| `/ping` | Comprueba la latencia del bot |
+revisar `src/commands/` para la lista completa.
 
 ### Sistema de audio (`src/musicManager.ts`)
 
 Módulo singleton que gestiona por guild:
+
 - **Cola de reproducción** (`queue: Track[]`)
 - **Conexión de voz** (`VoiceConnection`)
 - **Reproductor** (`AudioPlayer`)
 - **Estado actual** (canción en curso, volumen, canal de texto)
 
 Flujo de reproducción:
+
 1. `/play` llama a `addTrack()` → resuelve el input:
    - URLs con `?v=` + `&list=`: se extrae solo el video (`v=`) ignorando la playlist
    - URL de playlist pura: se usa `playdl.playlist_info()` y se encolan todos los videos
@@ -69,6 +57,7 @@ Flujo de reproducción:
 6. `/skip` llama a `player.stop()` sin vaciar la cola; el evento `Idle` dispara `playNext()` automáticamente
 
 Stack de audio:
+
 - **`yt-dlp`** (binario del sistema) — streaming real de YouTube
 - **`play-dl`** — búsqueda en YouTube y obtención de metadatos/thumbnails
 - **`@discordjs/voice`** + **`ffmpeg-static`** — reproducción y transcodificación
@@ -78,15 +67,15 @@ Stack de audio:
 
 ```ts
 // src/commands/ejemplo.ts
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { Command } from '../types';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import { Command } from "../types";
 
 const comando: Command = {
   data: new SlashCommandBuilder()
-    .setName('ejemplo')
-    .setDescription('Descripción'),
+    .setName("ejemplo")
+    .setDescription("Descripción"),
   async execute(interaction: ChatInputCommandInteraction) {
-    await interaction.reply('Hola');
+    await interaction.reply("Hola");
   },
 };
 
@@ -97,12 +86,14 @@ export default comando;
 
 ```ts
 // src/events/nombreEvento.ts
-import { Events } from 'discord.js';
+import { Events } from "discord.js";
 
 export default {
   name: Events.SomeEvent,
   once: false,
-  async execute(...args: any[]) { /* ... */ },
+  async execute(...args: any[]) {
+    /* ... */
+  },
 };
 ```
 
@@ -116,9 +107,25 @@ export default {
 
 Solo `Guilds` y `GuildVoiceStates` (sin privileged intents).
 
+### Sistema de logging (`src/logger.ts`)
+
+Singleton de `pino` con dos streams simultáneos:
+
+- **Consola** — `pino-pretty` con colores si `NODE_ENV !== 'production'`; JSON puro en producción
+- **Archivo** — `logs/<ISO-timestamp>.log` con JSON estructurado; un archivo nuevo por sesión
+
+Cada ejecución de un comando se loguea automáticamente en `src/events/interactionCreate.ts` con:
+- `command` — nombre del comando
+- `user` / `userId` — tag e ID del usuario
+- `options` — argumentos pasados al comando
+
+Los stderr de `yt-dlp` se loguean como `warn` (no son errores fatales del bot).
+La carpeta `logs/` está en `.gitignore`.
+
 ### Embeds y colores
 
 Sistema de colores consistente en todas las respuestas:
+
 - `0x1db954` verde — reproduciendo / acción positiva
 - `0x5865f2` blurple — informativo / cola
 - `0x57f287` verde claro — éxito

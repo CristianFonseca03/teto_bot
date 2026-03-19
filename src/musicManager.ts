@@ -11,10 +11,11 @@ import {
 } from '@discordjs/voice';
 import { EmbedBuilder } from 'discord.js';
 import playdl from 'play-dl';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import type { VoiceBasedChannel } from 'discord.js';
+import logger from './logger';
 
 type Sendable = { send(options: any): Promise<unknown> };
 
@@ -33,6 +34,7 @@ interface GuildState {
   volume: number;
   textChannel: Sendable | null;
   currentTrack: Track | null;
+  ytdlpProc: ChildProcess | null;
 }
 
 const states = new Map<string, GuildState>();
@@ -46,6 +48,7 @@ function createState(guildId: string): GuildState {
     volume: 0.75,
     textChannel: null,
     currentTrack: null,
+    ytdlpProc: null,
   };
 
   player.on(AudioPlayerStatus.Idle, () => {
@@ -54,7 +57,7 @@ function createState(guildId: string): GuildState {
   });
 
   player.on('error', err => {
-    console.error(`[MusicManager] Error en guild ${guildId}:`, err.message);
+    logger.error({ err, guildId }, '[MusicManager] Error en player');
     state.currentTrack = null;
     void playNext(guildId, true);
   });
@@ -86,8 +89,17 @@ export function buildNowPlayingEmbed(track: Track): EmbedBuilder {
   return embed;
 }
 
+function killYtdlp(state: GuildState): void {
+  if (state.ytdlpProc) {
+    state.ytdlpProc.stdout?.destroy();
+    state.ytdlpProc.kill('SIGKILL');
+    state.ytdlpProc = null;
+  }
+}
+
 async function playNext(guildId: string, notify: boolean): Promise<void> {
   const state = getState(guildId);
+  killYtdlp(state);
 
   if (state.queue.length === 0) {
     if (notify) {
@@ -112,7 +124,8 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
         '--extractor-args', 'youtube:player_client=android',
         track.url,
       ]);
-      proc.stderr.on('data', d => console.error('[yt-dlp]', d.toString().trim()));
+      proc.stderr.on('data', d => logger.warn('[yt-dlp] %s', d.toString().trim()));
+      state.ytdlpProc = proc;
       resource = createAudioResource(proc.stdout, {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
@@ -130,7 +143,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
         .catch(() => {});
     }
   } catch (err) {
-    console.error(`[MusicManager] Error reproduciendo "${track.title}":`, err);
+    logger.error({ err, title: track.title }, '[MusicManager] Error reproduciendo track');
     state.currentTrack = null;
     state.textChannel
       ?.send(`Error al reproducir **${track.title}**. Saltando...`)
@@ -156,7 +169,7 @@ function playJoinSound(guildId: string): void {
       '--no-warnings',
       url,
     ]);
-    proc.stderr.on('data', d => console.error('[yt-dlp join]', d.toString().trim()));
+    proc.stderr.on('data', d => logger.warn('[yt-dlp join] %s', d.toString().trim()));
     resource = createAudioResource(proc.stdout, { inputType: StreamType.Arbitrary, inlineVolume: true });
   } else {
     resource = createAudioResource(filePath, { inlineVolume: true });
@@ -331,6 +344,7 @@ export function stop(guildId: string) {
   const state = getState(guildId);
   state.queue = [];
   state.currentTrack = null;
+  killYtdlp(state);
   state.player.stop(true);
 }
 
@@ -343,6 +357,23 @@ export function skip(guildId: string): boolean {
 
 export function cleanQueue(guildId: string) {
   getState(guildId).queue = [];
+}
+
+export function prioritizeTrack(guildId: string, index: number): Track | null {
+  const queue = getState(guildId).queue;
+  if (index < 0 || index >= queue.length) return null;
+  const [track] = queue.splice(index, 1);
+  queue.unshift(track);
+  return track;
+}
+
+export function skipTo(guildId: string, position: number): { skipped: Track[]; target: Track } | null {
+  const state = getState(guildId);
+  if (!state.currentTrack) return null;
+  if (position < 1 || position > state.queue.length) return null;
+  const skipped = state.queue.splice(0, position - 1);
+  state.player.stop();
+  return { skipped, target: state.queue[0] };
 }
 
 export function shuffleQueue(guildId: string) {
@@ -359,6 +390,7 @@ export function disconnect(guildId: string) {
 
   state.queue = [];
   state.currentTrack = null;
+  killYtdlp(state);
   state.player.stop(true);
 
   if (
