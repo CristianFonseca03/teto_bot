@@ -1,120 +1,287 @@
-# TetoBot
+# Teto Bot
 
-Bot de música para Discord construido con Discord.js v14 y TypeScript. Reproduce audio de YouTube y archivos locales con gestión completa de cola.
+Bot de Discord construido con [discord.js](https://discord.js.org/) v14 y TypeScript. Ofrece reproducción de música desde YouTube y archivos locales, con comandos de control, conversión de monedas y búsqueda de GIFs.
 
 ## Requisitos
 
-- Node.js >= 22.12.0
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) instalado en el sistema
-- Una aplicación de Discord ([Discord Developer Portal](https://discord.com/developers/applications))
+- **Node.js** >= 22.12.0 (gestionar con [nvm](https://github.com/nvm-sh/nvm): `nvm use 22`)
+- **yt-dlp** — binario del sistema para streaming de YouTube
+  ```bash
+  brew install yt-dlp
+  ```
 
 ## Instalación
 
-### 1. Instalar dependencias del sistema
+1. Clonar el repositorio
+   ```bash
+   git clone <repositorio>
+   cd teto_bot
+   ```
 
-```bash
-# macOS
-brew install yt-dlp
+2. Instalar dependencias
+   ```bash
+   npm install
+   ```
 
-# Linux (Debian/Ubuntu)
-sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-sudo chmod a+rx /usr/local/bin/yt-dlp
-```
+3. Crear archivo `.env` basado en `.env.example`
+   ```bash
+   cp .env.example .env
+   ```
 
-### 2. Instalar Node.js 22
+4. Editar `.env` y completar las variables requeridas (ver tabla abajo)
 
-```bash
-# Con nvm
-nvm install 22
-nvm use 22
-```
+5. Compilar (opcional, `npm run dev` lo hace automáticamente)
+   ```bash
+   npm run build
+   ```
 
-### 3. Clonar e instalar dependencias
+6. Ejecutar en desarrollo
+   ```bash
+   npm run dev
+   ```
 
-```bash
-git clone https://github.com/CristianFonseca03/teto_bot.git
-cd teto_bot
-npm install
-```
+## Variables de entorno
 
-### 4. Configurar variables de entorno
+| Variable | Requerida | Descripción | Ejemplo |
+|---|---|---|---|
+| `DISCORD_TOKEN` | Sí | Token del bot | `OTk1NzQ5NDc1OTUzMDc1NzEy...` |
+| `CLIENT_ID` | Sí | Application client ID | `995749475953075712` |
+| `GUILD_ID` | No | Server ID para dev (comandos instantáneos) | `123456789` |
+| `JOIN_SOUND_URL` | No | Ruta o URL del audio al entrar a canal | `assets/teto.mp3` o `https://...` |
+| `GIPHY_API_KEY` | No | API key de Giphy | Requerida para `/gif` |
+| `EXCHANGE_RATE_API_KEY` | No | API key de ExchangeRate-API | Requerida para `/convert` |
+| `NODE_ENV` | No | Modo ejecución | `development` o `production` |
 
-```bash
-cp .env.example .env
-```
+## Scripts npm
 
-Editar `.env` con los valores del bot:
-
-```env
-DISCORD_TOKEN=tu_token_aqui
-CLIENT_ID=tu_client_id_aqui
-GUILD_ID=id_de_tu_servidor          # opcional, solo para desarrollo
-JOIN_SOUND_URL=assets/teto.mp3      # opcional, audio al entrar al canal
-GIPHY_API_KEY=tu_api_key_aqui       # opcional, necesaria para el comando /gif
-EXCHANGE_RATE_API_KEY=tu_api_key    # opcional, necesaria para el comando /convert
-NODE_ENV=development                # opcional, activa pino-pretty en consola
-```
-
-Obtener estos valores desde el [Discord Developer Portal](https://discord.com/developers/applications):
-- **DISCORD_TOKEN**: sección *Bot → Token*
-- **CLIENT_ID**: sección *General Information → Application ID*
-- **GUILD_ID**: ID de tu servidor (activa *Developer Mode* en Discord → clic derecho en el servidor → *Copy Server ID*)
-
-### 5. Registrar slash commands
-
-```bash
-npm run deploy
-```
-
-> Con `GUILD_ID` configurado, los comandos se registran al instante en ese servidor. Sin él, se registran globalmente y pueden tardar hasta 1 hora en aparecer.
-
-### 6. Iniciar el bot
-
-```bash
-# Desarrollo (hot reload)
-npm run dev
-
-# Producción
-npm run build
-npm start
-```
-
-## Comandos
-
-| Comando | Descripción |
+| Script | Descripción |
 |---|---|
-| `/play <entrada>` | Reproduce o encola audio. Acepta URL de YouTube, playlist, término de búsqueda o nombre de archivo en `assets/` |
-| `/play <entrada> volumen:[0-100]` | Igual, con volumen personalizado (por defecto 75%) |
-| `/queue` | Muestra la cola de reproducción paginada con botones para saltar directamente a cualquier canción |
-| `/skip` | Salta la canción actual |
-| `/skip posicion:[n]` | Salta hasta la posición indicada de la cola (descarta las anteriores) |
-| `/priority posicion:[n]` | Mueve una canción al inicio de la cola para que sea la próxima en reproducirse |
-| `/pause` | Pausa o reanuda la reproducción |
-| `/stop` | Detiene la reproducción y limpia la cola |
-| `/clean` | Limpia la cola sin detener la canción actual |
-| `/shuffle` | Mezcla aleatoriamente las canciones en cola |
-| `/leave` | Desconecta el bot del canal de voz |
-| `/help` | Muestra la lista de comandos disponibles |
-| `/ping` | Comprueba la latencia del bot |
-| `/gif <busqueda>` | Busca y muestra un GIF aleatorio de Giphy (requiere `GIPHY_API_KEY`) |
-| `/convert <monto> <moneda>` | Convierte un monto entre monedas reales (USD, COP, MXN) y meme (GNS, BAL, SLK, SPX, AKC). Incluye autocomplete. Requiere `EXCHANGE_RATE_API_KEY` |
+| `npm run dev` | Desarrollo con recarga automática |
+| `npm run build` | Compilar TypeScript a JavaScript |
+| `npm run start` | Ejecutar bot compilado |
+| `npm run deploy` | Registrar comandos slash en Discord |
+
+Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo es necesario después de añadir o cambiar opciones de comandos.
+
+## Comandos disponibles
+
+### Música
+
+| Comando | Opción | Descripción |
+|---|---|---|
+| `/play` | `entrada` (requerida) | Reproduce o añade a la cola URL de YouTube, búsqueda o archivo local |
+| `/play` | `volumen` (0-100) | Establece volumen (default: 75) |
+| `/skip` | (ninguna) | Salta canción actual |
+| `/skip` | `posicion` | Salta a una posición específica de la cola |
+| `/pause` | (ninguna) | Pausa o reanuda la reproducción |
+| `/stop` | (ninguna) | Detiene reproducción y limpia cola |
+| `/queue` | (ninguna) | Muestra cola con botones de navegación y salto |
+| `/clean` | (ninguna) | Vacía la cola (sin detener actual) |
+| `/leave` | (ninguna) | Desconecta bot del canal de voz |
+| `/priority` | `posicion` (requerida) | Mueve canción al inicio de la cola |
+| `/shuffle` | (ninguna) | Mezcla aleatoriamente la cola |
+
+### Utilidad
+
+| Comando | Opción | Descripción |
+|---|---|---|
+| `/convert` | `monto` (requerida) | Monto a convertir |
+| `/convert` | `moneda` (requerida) | Moneda de origen (con autocomplete) |
+| `/gif` | `busqueda` (requerida) | Busca GIF aleatorio en Giphy |
+| `/ping` | (ninguna) | Muestra latencia del bot |
+| `/help` | (ninguna) | Lista todos los comandos |
+
+## Monedas soportadas en `/convert`
+
+### Reales
+
+| Código | Nombre | Símbolo |
+|---|---|---|
+| USD | US Dollar | 🇺🇸 |
+| COP | Peso Colombiano | 🇨🇴 |
+| MXN | Peso Mexicano | 🇲🇽 |
+
+### Meme
+
+| Código | Nombre | Símbolo | Equivalencia USD |
+|---|---|---|---|
+| GNS | Gansito | 🍰 | 1.00 |
+| BAL | Balatro | 🃏 | 10.00 |
+| SLK | Silksong | 🕷️ | 20.00 |
+| SPX | Sub Proxy | 🔌 | 3.90 |
+| AKC | AK-cartel | 🐉 | 19.40 |
+
+Las tasas de monedas reales se obtienen de [ExchangeRate-API](https://www.exchangerate-api.com) cada hora. Las monedas meme tienen equivalencia fija.
 
 ## Archivos de audio locales
 
-Coloca archivos de audio en la carpeta `assets/` y úsalos con `/play nombre-del-archivo.mp3`.
+Coloca archivos de audio en el directorio `assets/` en la raíz del proyecto:
+
+```
+assets/
+├── mi_cancion.mp3
+├── sonido.wav
+└── voz.ogg
+```
+
+Para reproducir:
+
+```
+/play mi_cancion.mp3
+```
+
+Formatos soportados: MP3, WAV, OGG, FLAC, etc. (cualquier formato que ffmpeg pueda decodificar).
 
 ## Logs
 
-Cada sesión genera un archivo de log en `logs/<timestamp>.log` con todos los eventos en formato JSON estructurado (útil para debugging y auditoría). En desarrollo, la consola muestra los logs con formato legible a color gracias a `pino-pretty`.
+Los logs se guardan automáticamente en `logs/` con timestamp ISO:
 
-Los archivos de log no se incluyen en git.
+```
+logs/
+├── 2026-03-19T15-30-45-123Z.log
+├── 2026-03-19T18-22-10-456Z.log
+└── ...
+```
 
-## Stack técnico
+En desarrollo (`NODE_ENV !== 'production'`), los logs se muestran en consola con colores usando `pino-pretty`. En producción, se emite JSON puro.
 
-- [Discord.js v14](https://discord.js.org/) — cliente de Discord
-- [@discordjs/voice](https://github.com/discordjs/voice) — conexión y reproducción de voz
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — streaming de YouTube
-- [play-dl](https://github.com/play-dl/play-dl) — búsqueda y metadatos de YouTube
-- [ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) — transcodificación de audio
-- [pino](https://getpino.io/) + [pino-pretty](https://github.com/pinojs/pino-pretty) — logging estructurado
-- [TypeScript](https://www.typescriptlang.org/) + [tsx](https://github.com/privatenumber/tsx) — desarrollo con hot reload
+Cada interacción incluye:
+- `command` — nombre del comando
+- `user` — tag del usuario
+- `userId` — ID del usuario
+- `options` — argumentos pasados
+
+## Arquitectura
+
+### Carga dinámica
+
+Los comandos y eventos se cargan automáticamente al iniciar:
+
+- **Comandos** — `src/commands/*.ts` (cada archivo exporta un comando)
+- **Eventos** — `src/events/*.ts` (cada archivo exporta un manejador de evento)
+
+No es necesario registrar comandos manualmente en el código.
+
+### Reproducción de música
+
+El sistema de música gestiona por servidor (guild):
+
+- Cola de reproducción
+- Conexión de voz
+- Reproductor de audio
+- Estado actual (canción, volumen, canal)
+
+**Flujo:**
+
+1. `/play` resuelve entrada (URL/búsqueda/archivo)
+2. Si es conexión nueva, reproduce `JOIN_SOUND_URL` (si está configurada)
+3. Encola y comienza reproducción si estaba idle
+4. Al terminar, pasa automáticamente a siguiente
+5. `/skip` salta canción actual y dispara siguiente automáticamente
+
+**Resolución de entrada:**
+
+- URL YouTube con playlist → extrae solo el video, ignora lista
+- URL de playlist pura → encola todos los videos
+- URL de video → obtiene metadatos y thumbnail
+- Texto libre → búsqueda automática en YouTube
+- Nombre de archivo → busca en `assets/`
+
+### Stack técnico
+
+| Componente | Propósito | Versión |
+|---|---|---|
+| discord.js | Client de Discord | ^14.16.3 |
+| @discordjs/voice | Reproducción de voz | ^0.19.1 |
+| play-dl | Búsqueda y metadatos YouTube | ^1.9.7 |
+| yt-dlp | Streaming de YouTube | (binario del sistema) |
+| ffmpeg-static | Transcodificación de audio | ^5.3.0 |
+| opusscript | Codificador Opus (fallback) | ^0.0.8 |
+| pino | Logging | ^10.3.1 |
+| pino-pretty | Colores en consola (dev) | ^13.1.3 |
+| typescript | Tipado estático | ^5.7.2 |
+| tsx | Ejecución directa de TS | ^4.19.2 |
+
+## Desarrollo
+
+### Añadir un comando
+
+1. Crear archivo `src/commands/mi_comando.ts`:
+
+```ts
+import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import { Command } from "../types";
+
+const miComando: Command = {
+  data: new SlashCommandBuilder()
+    .setName("micomando")
+    .setDescription("Descripción breve"),
+  async execute(interaction: ChatInputCommandInteraction) {
+    await interaction.reply("Respuesta del bot");
+  },
+};
+
+export default miComando;
+```
+
+2. Ejecutar `npm run deploy` para registrar el comando en Discord
+
+3. Reiniciar bot con `npm run dev`
+
+### Añadir un evento
+
+1. Crear archivo `src/events/mi_evento.ts`:
+
+```ts
+import { Events } from "discord.js";
+
+export default {
+  name: Events.MessageCreate,
+  once: false,
+  async execute(message: any) {
+    if (message.author.bot) return;
+    await message.reply("Echo: " + message.content);
+  },
+};
+```
+
+2. Reiniciar bot — se carga automáticamente
+
+## Limitaciones y notas
+
+- No hay suite de tests — las pruebas se realizan manualmente en Discord
+- El collector de `/queue` no restringe a quién puede navegar (cualquiera puede hacerlo)
+- Los archivos de audio locales no deben contener rutas relativas (`../`) en sus nombres para evitar escapes de directorio
+- `interaction.user.tag` es deprecado en discord.js v14; considerar migrar a `interaction.user.username`
+
+## Solución de problemas
+
+### El bot no inicia
+- Verificar que `DISCORD_TOKEN` y `CLIENT_ID` están definidos
+- Ejecutar `npm install` para instalar dependencias
+- Verificar que Node.js >= 22.12.0: `node --version`
+
+### `/play` no funciona
+- Verificar que `yt-dlp` está instalado: `yt-dlp --version`
+- Para URLs de YouTube, asegurarse de que YouTube no bloqueó la extracción
+- Para archivos locales, verificar que existen en `assets/`
+
+### `/convert` devuelve error
+- Verificar que `EXCHANGE_RATE_API_KEY` está definida
+- Comprobar que la API key es válida en https://www.exchangerate-api.com
+
+### `/gif` devuelve error
+- Verificar que `GIPHY_API_KEY` está definida
+- Comprobar que la API key es válida en https://giphy.com/apps
+
+### Los comandos tardan 1 hora en aparecer
+- Definir `GUILD_ID` en `.env` para registro local instantáneo
+- O ejecutar `npm run deploy` para forzar reregistro global
+
+## Licencia
+
+(Especificar licencia si aplica)
+
+## Contacto
+
+(Especificar datos de contacto si aplica)

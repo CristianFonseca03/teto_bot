@@ -1,0 +1,34 @@
+Codemap Analysis Report — 2026-03-19
+======================================
+
+Estado: GENERACIÓN INICIAL (no existían codemaps previos)
+
+Archivos escaneados: 19
+  src/index.ts
+  src/types.ts
+  src/musicManager.ts
+  src/currencies.ts
+  src/logger.ts
+  src/deploy-commands.ts
+  src/events/interactionCreate.ts
+  src/events/ready.ts
+  src/commands/ (13 archivos)
+
+Codemaps generados:
+  docs/CODEMAPS/architecture.md  — arquitectura general, flujos, estado por guild
+  docs/CODEMAPS/commands.md      — referencia de los 13 comandos slash
+  docs/CODEMAPS/dependencies.md  — servicios externos, npm packages, binarios
+
+Servicios externos detectados:
+  - Discord API (requerido)
+  - ExchangeRate-API v6 (opcional)
+  - Giphy API (opcional)
+  - yt-dlp binario del sistema (requerido para reproduccion de YouTube)
+
+Arquitectura detectada:
+  - Single-process Node.js Discord bot
+  - Sin base de datos (estado en memoria, Map<guildId, GuildState>)
+  - Sin frontend
+  - Carga dinamica de comandos y eventos via readdirSync
+
+Advertencias de staleness: N/A (generacion inicial)
