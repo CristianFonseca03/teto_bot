@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-19 | Files scanned: 19 | Token estimate: ~700 -->
+<!-- Generated: 2026-03-19 (actualizado) | Files scanned: 19 | Token estimate: ~700 -->
 
 # Arquitectura — TetoBot
 
@@ -20,7 +20,7 @@ src/index.ts
 ```
 Discord → interactionCreate event
   isAutocomplete() → command.autocomplete()  [responde y retorna]
-  isChatInputCommand() → logger.info(command, user, options)
+  isChatInputCommand() → logger.info(command, user.username, options)
                        → command.execute(interaction)
                        → try/catch → embed rojo efímero si error
 ```
@@ -37,6 +37,7 @@ Discord → interactionCreate event
       nombre de archivo     → busca en assets/
   → ensureConnection(voiceChannel)
       → nueva conexión: playJoinSound() → JOIN_SOUND_URL
+  → captura firstTrack (evita race condition en playlists)
   → addTrack() → player idle? → playNext(notify:false)
 
 AudioPlayerStatus.Idle → playNext(notify:true) → embed en textChannel
@@ -45,6 +46,7 @@ playNext():
   spawn yt-dlp --extractor-args "youtube:player_client=android"
   → createAudioResource(stream, StreamType.Arbitrary)
   → player.play(resource)
+  → si MAX_CONSECUTIVE_ERRORS=5: limpia cola y detiene
 ```
 
 ## Estado por guild

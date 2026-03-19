@@ -65,6 +65,8 @@ La propiedad `autocomplete` es opcional y se invoca antes de `execute` cuando el
 
 Módulo singleton que gestiona el estado de reproducción por guild usando un `Map<guildId, GuildState>`.
 
+**Límite de errores consecutivos:** `MAX_CONSECUTIVE_ERRORS = 5`. Si se alcanza este límite durante `playNext()`, se limpia la cola y se detiene el reproductor.
+
 **GuildState almacena:**
 - `connection: VoiceConnection | null` — conexión activa al canal de voz
 - `player: AudioPlayer` — reproductor de discord.js/voice
@@ -116,13 +118,15 @@ export interface Track {
    - URL de video → obtiene metadatos con `playdl.video_info()`
    - Texto libre → búsqueda con `playdl.search()` (límite 1 resultado)
    - Nombre de archivo → busca en `assets/` (ruta relativa a `process.cwd()`)
+   - Fix: captura `firstTrack` antes de llamar `playNext` asincrónico (evita race condition en playlists)
 3. Si es conexión nueva, `ensureConnection()` reproduce `JOIN_SOUND_URL` antes de la cola
 4. Si player está idle, llama `playNext(guildId, false)` (reply ya notifica)
 5. Al terminar cada canción, evento `AudioPlayerStatus.Idle` llama `playNext(guildId, true)` (notifica al canal)
 6. `playNext()` mata proceso yt-dlp anterior, obtiene siguiente track
 7. Para YouTube: spawn `yt-dlp` con argumentos de cliente Android, pasa stdout a `createAudioResource`
 8. Para archivos locales: crea recurso de audio del archivo
-9. `/skip` llama `player.stop()` sin vaciar cola; `Idle` dispara `playNext()` automáticamente
+9. Si hay `MAX_CONSECUTIVE_ERRORS` errores seguidos, limpia la cola y detiene
+10. `/skip` llama `player.stop()` sin vaciar cola; `Idle` dispara `playNext()` automáticamente
 
 **Stack de audio:**
 
@@ -146,7 +150,7 @@ El logger se instancia una sola vez al cargar `src/logger.ts`. Cada interacción
 
 ```ts
 logger.info(
-  { command: interaction.commandName, user: interaction.user.tag, userId: interaction.user.id, options },
+  { command: interaction.commandName, user: interaction.user.username, userId: interaction.user.id, options },
   'Comando ejecutado',
 );
 ```
@@ -154,6 +158,8 @@ logger.info(
 Los stderr de `yt-dlp` se loguean como `warn` (no son errores fatales).
 
 La carpeta `logs/` está en `.gitignore`.
+
+`src/index.ts` registra un `.catch()` en `client.login()` que loguea el error y llama `process.exit(1)` si falla la conexión.
 
 ### Conversión de monedas (src/currencies.ts)
 
@@ -179,7 +185,10 @@ export interface Currency {
 export async function fetchRates(): Promise<ExchangeRates>
 ```
 
+- Valida que `EXCHANGE_RATE_API_KEY` exista antes de construir la URL; lanza error si no está definida
+- Timeout de 5s con `AbortController`
 - Cache en memoria de 1h (CACHE_TTL = 60 * 60 * 1000)
+- Valida que `COP` y `MXN` sean números antes de cachear
 - Si API falla y hay cache expirado, lo reutiliza con `logger.warn`
 - Si API falla y no hay cache, lanza error
 
@@ -355,6 +364,7 @@ No hay directorio de tests en el proyecto. Las pruebas pueden realizarse manualm
 
 ## Notas adicionales
 
-- `interaction.user.tag` es deprecado en discord.js v14+ pero se sigue usando en logging; considerar migrar a `interaction.user.username` en futuro
-- El collector de `/queue` no tiene restricción de usuario: cualquiera puede navegar la cola (limitación conocida)
+- El collector de botones en `/queue` está restringido al autor de la interacción: solo el usuario que ejecutó el comando puede navegar los botones de paginación
 - Los errores de ejecución de comandos se capturan en try/catch y se devuelven como embeds efímeros rojo; si el token ya expiró, se ignoran
+- `/play` valida que `interaction.channel` exista y tenga método `send` antes de pasarlo a `addTrack`, devolviendo mensaje de error genérico al usuario si algo falla
+- `/gif` y `/convert` tienen timeout de 5s en sus fetches a APIs externas

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-19 | Files scanned: 13 | Token estimate: ~500 -->
+<!-- Generated: 2026-03-19 (actualizado) | Files scanned: 13 | Token estimate: ~500 -->
 
 # Comandos — TetoBot
 
@@ -31,7 +31,7 @@
 | `leave.ts` | `/leave` | — | `disconnect`, `getConnection` |
 | `pause.ts` | `/pause` | — | `togglePause` |
 | `ping.ts` | `/ping` | — | Discord.js `withResponse` |
-| `play.ts` | `/play` | `entrada` (string, req), `volumen` (int 0-100, opt) | `addTrack`, `setVolume`, `buildNowPlayingEmbed` |
+| `play.ts` | `/play` | `entrada` (string, req), `volumen` (int 0-100, opt) | `addTrack`, `setVolume`, `buildNowPlayingEmbed` — valida `interaction.channel` antes de uso |
 | `priority.ts` | `/priority` | `posicion` (int, req, min:1) | `prioritizeTrack`, `getQueue` |
 | `queue.ts` | `/queue` | — | `getCurrentTrack`, `getQueue`, `skipTo` + componentes interactivos |
 | `shuffle.ts` | `/shuffle` | — | `shuffleQueue`, `getQueue` |
@@ -40,7 +40,7 @@
 
 ## Componentes interactivos (`/queue`)
 
-`/queue` usa `createMessageComponentCollector` con TTL de 120 s:
+`/queue` usa `createMessageComponentCollector` con TTL de 120 s y filtro restringido al autor:
 
 ```
 queue_prev         → page--
@@ -48,11 +48,13 @@ queue_next         → page++
 queue_skip_<pos>   → skipTo(guildId, pos) → actualiza embed
 ```
 
-Botones desaparecen al expirar el collector (se edita el mensaje sin components).
+Solo el usuario que ejecutó `/queue` puede usar los botones. Botones desaparecen al expirar el collector (se edita el mensaje sin components).
 
 ## Autocomplete (`/convert`)
 
 `convert.autocomplete()` filtra `CURRENCIES` por `code` o `name` con `includes()` (case-insensitive), devuelve hasta 25 resultados con formato `emoji code — name`.
+
+`/gif` y `/convert` tienen timeout de 5s en sus fetches a APIs externas (AbortController).
 
 ## Sistema de colores (embeds)
 

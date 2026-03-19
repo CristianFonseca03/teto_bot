@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-19 | Files scanned: 19 | Token estimate: ~400 -->
+<!-- Generated: 2026-03-19 (actualizado) | Files scanned: 19 | Token estimate: ~400 -->
 
 # Dependencias — TetoBot
 
