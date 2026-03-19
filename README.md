@@ -50,6 +50,7 @@ DISCORD_TOKEN=tu_token_aqui
 CLIENT_ID=tu_client_id_aqui
 GUILD_ID=id_de_tu_servidor     # opcional, solo para desarrollo
 JOIN_SOUND_URL=assets/teto.mp3 # opcional, audio al entrar al canal
+GIPHY_API_KEY=tu_api_key_aqui  # opcional, necesaria para el comando /gif
 NODE_ENV=development           # opcional, activa pino-pretty en consola
 ```
 
@@ -94,10 +95,7 @@ npm start
 | `/leave` | Desconecta el bot del canal de voz |
 | `/help` | Muestra la lista de comandos disponibles |
 | `/ping` | Comprueba la latencia del bot |
-
-## Archivos de audio locales
-
-Coloca archivos de audio en la carpeta `assets/` y úsalos con `/play nombre-del-archivo.mp3`.
+| `/gif <busqueda>` | Busca y muestra un GIF aleatorio de Giphy (requiere `GIPHY_API_KEY`) |
 
 ## Archivos de audio locales
 

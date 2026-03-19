@@ -21,6 +21,7 @@ Crear `.env` basado en `.env.example`:
 - `CLIENT_ID` — application client ID (obligatorio para deploy)
 - `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; sin él, los comandos se registran globalmente y tardan ~1h en propagarse)
 - `JOIN_SOUND_URL` — ruta relativa a `cwd` o URL HTTP del audio que se reproduce al entrar a un canal de voz (ej. `assets/teto.mp3`; opcional)
+- `GIPHY_API_KEY` — API key de Giphy para el comando `/gif` (opcional; sin ella el comando devuelve error)
 - `NODE_ENV` — si es distinto de `production`, el logger usa `pino-pretty` con colores en consola; en producción emite JSON puro
 
 ## Arquitectura
