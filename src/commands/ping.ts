@@ -7,8 +7,8 @@ const ping: Command = {
     .setDescription('Muestra la latencia del bot'),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
-    const latency = sent.createdTimestamp - interaction.createdTimestamp;
+    const { resource } = await interaction.reply({ content: 'Pinging...', withResponse: true });
+    const latency = resource!.message!.createdTimestamp - interaction.createdTimestamp;
 
     await interaction.editReply(`Pong! \`${latency}ms\``);
   },
