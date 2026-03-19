@@ -1,6 +1,7 @@
 import {
   ChatInputCommandInteraction,
   EmbedBuilder,
+  MessageFlags,
   SlashCommandBuilder,
 } from "discord.js";
 import { Command } from "../types";
@@ -38,7 +39,7 @@ const gif: Command = {
               "❌ `GIPHY_API_KEY` no está configurada en el entorno.",
             ),
         ],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
