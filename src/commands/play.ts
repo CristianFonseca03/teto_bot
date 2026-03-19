@@ -20,7 +20,7 @@ const play: Command = {
     .addIntegerOption(option =>
       option
         .setName('volumen')
-        .setDescription('Volumen del audio de 0 a 100 (por defecto: 5)')
+        .setDescription('Volumen del audio de 0 a 100 (por defecto: 75)')
         .setMinValue(0)
         .setMaxValue(100)
         .setRequired(false)
@@ -39,7 +39,7 @@ const play: Command = {
     }
 
     const input = interaction.options.getString('entrada', true);
-    const volumePercent = interaction.options.getInteger('volumen') ?? 5;
+    const volumePercent = interaction.options.getInteger('volumen') ?? 75;
     setVolume(interaction.guildId!, volumePercent / 100);
 
     await interaction.deferReply();

@@ -43,7 +43,7 @@ function createState(guildId: string): GuildState {
     connection: null,
     player,
     queue: [],
-    volume: 0.05,
+    volume: 0.75,
     textChannel: null,
     currentTrack: null,
   };
@@ -109,6 +109,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
         '-o', '-',
         '--quiet',
         '--no-warnings',
+        '--extractor-args', 'youtube:player_client=android',
         track.url,
       ]);
       proc.stderr.on('data', d => console.error('[yt-dlp]', d.toString().trim()));
@@ -138,6 +139,34 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
   }
 }
 
+function playJoinSound(guildId: string): void {
+  const url = process.env.JOIN_SOUND_URL;
+  if (!url) return;
+
+  const state = getState(guildId);
+  const filePath = url.startsWith('http') ? url : join(process.cwd(), url);
+
+  let resource;
+  if (url.startsWith('http')) {
+    const proc = spawn('yt-dlp', [
+      '-f', 'bestaudio/best',
+      '--no-playlist',
+      '-o', '-',
+      '--quiet',
+      '--no-warnings',
+      url,
+    ]);
+    proc.stderr.on('data', d => console.error('[yt-dlp join]', d.toString().trim()));
+    resource = createAudioResource(proc.stdout, { inputType: StreamType.Arbitrary, inlineVolume: true });
+  } else {
+    resource = createAudioResource(filePath, { inlineVolume: true });
+  }
+
+  resource.volume?.setVolume(state.volume);
+  state.currentTrack = { title: 'join', url, type: 'file', requestedBy: 'bot' };
+  state.player.play(resource);
+}
+
 export async function ensureConnection(
   guildId: string,
   voiceChannel: VoiceBasedChannel,
@@ -146,10 +175,11 @@ export async function ensureConnection(
   const state = getState(guildId);
   state.textChannel = textChannel;
 
-  if (
+  const isNew =
     !state.connection ||
-    state.connection.state.status === VoiceConnectionStatus.Destroyed
-  ) {
+    state.connection.state.status === VoiceConnectionStatus.Destroyed;
+
+  if (isNew) {
     const connection = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId,
@@ -171,8 +201,14 @@ export async function ensureConnection(
     state.connection = connection;
   }
 
-  await entersState(state.connection, VoiceConnectionStatus.Ready, 10_000);
-  return state.connection;
+  const conn = state.connection!;
+  await entersState(conn, VoiceConnectionStatus.Ready, 10_000);
+
+  if (isNew) {
+    playJoinSound(guildId);
+  }
+
+  return conn;
 }
 
 export async function addTrack(

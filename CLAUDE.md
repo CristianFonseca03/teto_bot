@@ -24,6 +24,7 @@ Crear `.env` basado en `.env.example`:
 - `DISCORD_TOKEN` — token del bot (obligatorio)
 - `CLIENT_ID` — application client ID (obligatorio para deploy)
 - `GUILD_ID` — ID del servidor para registro de comandos en desarrollo (opcional; sin él, los comandos se registran globalmente y tardan ~1h en propagarse)
+- `JOIN_SOUND_URL` — ruta relativa a `cwd` o URL HTTP del audio que se reproduce al entrar a un canal de voz (ej. `assets/teto.mp3`; opcional)
 
 ## Arquitectura
 
@@ -54,9 +55,10 @@ Módulo singleton que gestiona por guild:
 
 Flujo de reproducción:
 1. `/play` llama a `addTrack()` → resuelve el input (URL YT, búsqueda o archivo local)
-2. Si el player está idle, llama a `playNext()` con `notify: false` (el reply de la interaction ya notifica)
-3. Al terminar una canción, el evento `AudioPlayerStatus.Idle` llama a `playNext()` con `notify: true` (envía embed al canal)
-4. `playNext()` hace spawn de `yt-dlp` para obtener el stream y lo pasa a `createAudioResource` con `StreamType.Arbitrary`
+2. Si es una conexión nueva, `ensureConnection()` llama a `playJoinSound()` que reproduce el audio de `JOIN_SOUND_URL` antes de empezar la cola
+3. Si el player está idle, llama a `playNext()` con `notify: false` (el reply de la interaction ya notifica)
+4. Al terminar una canción, el evento `AudioPlayerStatus.Idle` llama a `playNext()` con `notify: true` (envía embed al canal)
+5. `playNext()` hace spawn de `yt-dlp` con `--extractor-args "youtube:player_client=android"` para obtener el stream y lo pasa a `createAudioResource` con `StreamType.Arbitrary`
 
 Stack de audio:
 - **`yt-dlp`** (binario del sistema) — streaming real de YouTube
