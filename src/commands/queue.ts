@@ -119,7 +119,10 @@ const queueCmd: Command = {
     await interaction.reply(buildPage(current, tracks, page));
     const reply = await interaction.fetchReply();
 
-    const collector = reply.createMessageComponentCollector({ time: 120_000 });
+    const collector = reply.createMessageComponentCollector({
+      time: 120_000,
+      filter: i => i.user.id === interaction.user.id,
+    });
 
     collector.on('collect', async i => {
       if (!i.isButton()) return;

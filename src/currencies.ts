@@ -33,7 +33,17 @@ export async function fetchRates(): Promise<ExchangeRates> {
   if (cachedRates && now - cacheTimestamp < CACHE_TTL) return cachedRates;
 
   const key = process.env.EXCHANGE_RATE_API_KEY;
-  const res = await fetch(`https://v6.exchangerate-api.com/v6/${key}/latest/USD`);
+  if (!key) throw new Error('EXCHANGE_RATE_API_KEY no está configurada.');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5_000);
+
+  let res: Response;
+  try {
+    res = await fetch(`https://v6.exchangerate-api.com/v6/${key}/latest/USD`, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     if (cachedRates) {
@@ -44,10 +54,18 @@ export async function fetchRates(): Promise<ExchangeRates> {
   }
 
   const json = (await res.json()) as { conversion_rates: Record<string, number> };
-  cachedRates = {
-    COP: json.conversion_rates['COP'],
-    MXN: json.conversion_rates['MXN'],
-  };
+  const COP = json.conversion_rates['COP'];
+  const MXN = json.conversion_rates['MXN'];
+
+  if (typeof COP !== 'number' || typeof MXN !== 'number') {
+    if (cachedRates) {
+      logger.warn('ExchangeRate-API devolvió tasas inválidas, reutilizando cache');
+      return cachedRates;
+    }
+    throw new Error('ExchangeRate-API devolvió tasas inválidas.');
+  }
+
+  cachedRates = { COP, MXN };
   cacheTimestamp = now;
   return cachedRates;
 }

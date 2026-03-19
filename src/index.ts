@@ -3,6 +3,7 @@ import { readdirSync } from 'fs';
 import { join } from 'path';
 import 'dotenv/config';
 import { Command } from './types';
+import logger from './logger';
 
 export interface ExtendedClient extends Client {
   commands: Collection<string, Command>;
@@ -30,4 +31,7 @@ for (const file of readdirSync(eventsPath).filter(f => f.endsWith('.ts') || f.en
   }
 }
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+  logger.error({ err }, 'Error al iniciar sesión en Discord');
+  process.exit(1);
+});

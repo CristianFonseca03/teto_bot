@@ -43,6 +43,14 @@ const play: Command = {
     const volumePercent = interaction.options.getInteger('volumen') ?? 75;
     setVolume(interaction.guildId!, volumePercent / 100);
 
+    if (!interaction.channel || !('send' in interaction.channel)) {
+      await interaction.reply({
+        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('No se puede reproducir en este contexto.')],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     await interaction.deferReply();
 
     try {
@@ -51,7 +59,7 @@ const play: Command = {
         input,
         interaction.user.username,
         voiceChannel,
-        interaction.channel as any,
+        interaction.channel,
       );
 
       if (playlistSize !== undefined) {
@@ -68,9 +76,9 @@ const play: Command = {
           .setAuthor({ name: `📋  Añadido a la cola · #${position}` });
         await interaction.editReply({ embeds: [embed] });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription(`Error: ${err.message}`)],
+        embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('No se pudo reproducir el audio. Intenta de nuevo.')],
       });
     }
   },

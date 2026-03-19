@@ -89,7 +89,7 @@ const command: Command = {
     const equivCol1 = equivalenciasLines.slice(0, half).join('\n');
     const equivCol2 = equivalenciasLines.slice(half).join('\n');
 
-    const updatedAt = new Date(Date.now()).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+    const updatedAt = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
     const color = fromCurrency.fictional ? 0x5865f2 : 0x1db954;
 
     const embed = new EmbedBuilder()

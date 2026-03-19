@@ -97,8 +97,11 @@ function killYtdlp(state: GuildState): void {
   }
 }
 
+const MAX_CONSECUTIVE_ERRORS = 5;
+
 async function playNext(guildId: string, notify: boolean): Promise<void> {
   const state = getState(guildId);
+  let consecutiveErrors = 0;
 
   while (true) {
     killYtdlp(state);
@@ -149,6 +152,14 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
     } catch (err) {
       logger.error({ err, title: track.title }, '[MusicManager] Error reproduciendo track');
       state.currentTrack = null;
+      consecutiveErrors++;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        state.textChannel
+          ?.send('Demasiados errores consecutivos. Deteniendo reproducción.')
+          .catch(() => {});
+        state.queue = [];
+        return;
+      }
       state.textChannel
         ?.send(`Error al reproducir **${track.title}**. Saltando...`)
         .catch(() => {});
@@ -269,9 +280,10 @@ export async function addTrack(
       });
     }
 
+    const firstTrack = state.queue[state.queue.length - videos.length];
     if (wasIdle) void playNext(guildId, false);
 
-    return { track: state.queue[0] ?? state.currentTrack!, position: wasIdle ? 0 : state.queue.length - videos.length + 1, playlistSize: videos.length };
+    return { track: firstTrack, position: wasIdle ? 0 : state.queue.length - videos.length + 1, playlistSize: videos.length };
   }
 
   let track: Track;
