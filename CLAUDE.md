@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## MCP Servers
+
+Servidores MCP requeridos por los agentes en `.claude/agents/`:
+
+| Servidor | Agente | Instalación |
+|---|---|---|
+| `context7` | `docs-lookup` | `claude mcp add context7 -- npx -y @upstash/context7-mcp` |
+
 ## Comandos de desarrollo
 
 revisar `package.json` para scripts disponibles.
