@@ -28,7 +28,7 @@ export default {
     }, {});
 
     logger.info(
-      { command: interaction.commandName, user: interaction.user.tag, userId: interaction.user.id, options },
+      { command: interaction.commandName, user: interaction.user.username, userId: interaction.user.id, options },
       'Comando ejecutado',
     );
 

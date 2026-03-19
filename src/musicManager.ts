@@ -13,7 +13,7 @@ import { EmbedBuilder } from 'discord.js';
 import playdl from 'play-dl';
 import { spawn, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, sep } from 'path';
 import type { VoiceBasedChannel } from 'discord.js';
 import logger from './logger';
 
@@ -99,56 +99,61 @@ function killYtdlp(state: GuildState): void {
 
 async function playNext(guildId: string, notify: boolean): Promise<void> {
   const state = getState(guildId);
-  killYtdlp(state);
 
-  if (state.queue.length === 0) {
-    if (notify) {
-      state.textChannel?.send('La cola de reproducción está vacía.').catch(() => {});
-    }
-    return;
-  }
+  while (true) {
+    killYtdlp(state);
 
-  const track = state.queue.shift()!;
-  state.currentTrack = track;
-
-  try {
-    let resource;
-
-    if (track.type === 'youtube') {
-      const proc = spawn('yt-dlp', [
-        '-f', 'bestaudio/best',
-        '--no-playlist',
-        '-o', '-',
-        '--quiet',
-        '--no-warnings',
-        '--extractor-args', 'youtube:player_client=android',
-        track.url,
-      ]);
-      proc.stderr.on('data', d => logger.warn('[yt-dlp] %s', d.toString().trim()));
-      state.ytdlpProc = proc;
-      resource = createAudioResource(proc.stdout, {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: true,
-      });
-    } else {
-      resource = createAudioResource(track.url, { inlineVolume: true });
+    if (state.queue.length === 0) {
+      if (notify) {
+        state.textChannel?.send('La cola de reproducción está vacía.').catch(() => {});
+      }
+      return;
     }
 
-    resource.volume?.setVolume(state.volume);
-    state.player.play(resource);
+    const track = state.queue.shift()!;
+    state.currentTrack = track;
 
-    if (notify) {
+    try {
+      let resource;
+
+      if (track.type === 'youtube') {
+        const proc = spawn('yt-dlp', [
+          '-f', 'bestaudio/best',
+          '--no-playlist',
+          '-o', '-',
+          '--quiet',
+          '--no-warnings',
+          '--extractor-args', 'youtube:player_client=android',
+          track.url,
+        ]);
+        proc.stderr.on('data', d => logger.warn('[yt-dlp] %s', d.toString().trim()));
+        state.ytdlpProc = proc;
+        resource = createAudioResource(proc.stdout, {
+          inputType: StreamType.Arbitrary,
+          inlineVolume: true,
+        });
+      } else {
+        resource = createAudioResource(track.url, { inlineVolume: true });
+      }
+
+      resource.volume?.setVolume(state.volume);
+      state.player.play(resource);
+
+      if (notify) {
+        state.textChannel
+          ?.send({ embeds: [buildNowPlayingEmbed(track)] })
+          .catch(() => {});
+      }
+
+      return;
+    } catch (err) {
+      logger.error({ err, title: track.title }, '[MusicManager] Error reproduciendo track');
+      state.currentTrack = null;
       state.textChannel
-        ?.send({ embeds: [buildNowPlayingEmbed(track)] })
+        ?.send(`Error al reproducir **${track.title}**. Saltando...`)
         .catch(() => {});
+      notify = true;
     }
-  } catch (err) {
-    logger.error({ err, title: track.title }, '[MusicManager] Error reproduciendo track');
-    state.currentTrack = null;
-    state.textChannel
-      ?.send(`Error al reproducir **${track.title}**. Saltando...`)
-      .catch(() => {});
-    await playNext(guildId, true);
   }
 }
 
@@ -282,7 +287,9 @@ export async function addTrack(
       thumbnail: thumbs?.at(-1)?.url,
     };
   } else {
-    const filePath = join(process.cwd(), 'assets', resolvedInput);
+    const assetsDir = join(process.cwd(), 'assets');
+    const filePath = join(assetsDir, resolvedInput);
+    if (!filePath.startsWith(assetsDir + sep)) throw new Error('Ruta de archivo inválida.');
     if (existsSync(filePath)) {
       track = { title: resolvedInput, url: filePath, type: 'file', requestedBy };
     } else {

@@ -48,6 +48,7 @@ const gif: Command = {
     const query = interaction.options.getString("busqueda", true);
 
     try {
+      // La API de Giphy v1 solo acepta autenticación via query param; no soporta header Authorization.
       const url = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(query)}&limit=25&rating=pg-13&lang=es`;
       const response = await fetch(url);
       const json = (await response.json()) as GiphyResponse;
