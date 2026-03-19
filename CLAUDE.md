@@ -36,13 +36,15 @@ Crear `.env` basado en `.env.example`:
 
 | Comando | Descripción |
 |---|---|
-| `/play <entrada> [volumen]` | Reproduce o encola audio de YouTube (URL o búsqueda) o archivo de `assets/` |
+| `/play <entrada> [volumen]` | Reproduce o encola audio de YouTube (URL de video, URL de playlist pública, búsqueda) o archivo de `assets/` |
 | `/queue` | Muestra la cola de reproducción actual |
+| `/skip` | Salta la canción actual y reproduce la siguiente |
 | `/pause` | Pausa o reanuda la reproducción |
 | `/stop` | Detiene la reproducción y limpia la cola |
 | `/clean` | Limpia la cola sin detener la canción actual |
 | `/shuffle` | Mezcla aleatoriamente las canciones en cola |
 | `/leave` | Desconecta el bot del canal de voz |
+| `/help` | Muestra todos los comandos disponibles |
 | `/ping` | Comprueba la latencia del bot |
 
 ### Sistema de audio (`src/musicManager.ts`)
@@ -54,11 +56,17 @@ Módulo singleton que gestiona por guild:
 - **Estado actual** (canción en curso, volumen, canal de texto)
 
 Flujo de reproducción:
-1. `/play` llama a `addTrack()` → resuelve el input (URL YT, búsqueda o archivo local)
+1. `/play` llama a `addTrack()` → resuelve el input:
+   - URLs con `?v=` + `&list=`: se extrae solo el video (`v=`) ignorando la playlist
+   - URL de playlist pura: se usa `playdl.playlist_info()` y se encolan todos los videos
+   - URL de video: se obtienen metadatos con `playdl.video_info()`
+   - Texto libre: búsqueda con `playdl.search()`
+   - Nombre de archivo: se busca en `assets/`
 2. Si es una conexión nueva, `ensureConnection()` llama a `playJoinSound()` que reproduce el audio de `JOIN_SOUND_URL` antes de empezar la cola
 3. Si el player está idle, llama a `playNext()` con `notify: false` (el reply de la interaction ya notifica)
 4. Al terminar una canción, el evento `AudioPlayerStatus.Idle` llama a `playNext()` con `notify: true` (envía embed al canal)
 5. `playNext()` hace spawn de `yt-dlp` con `--extractor-args "youtube:player_client=android"` para obtener el stream y lo pasa a `createAudioResource` con `StreamType.Arbitrary`
+6. `/skip` llama a `player.stop()` sin vaciar la cola; el evento `Idle` dispara `playNext()` automáticamente
 
 Stack de audio:
 - **`yt-dlp`** (binario del sistema) — streaming real de YouTube
@@ -102,7 +110,7 @@ export default {
 
 1. Usuario invoca slash command → Discord emite `interactionCreate`
 2. `src/events/interactionCreate.ts` enruta al handler en `client.commands`
-3. Errores son capturados y retornados al usuario como embed efímero
+3. Errores son capturados y retornados al usuario como embed efímero; el handler de error está envuelto en try-catch para evitar crashes si el token de interacción ya expiró
 
 ### Intents activos
 

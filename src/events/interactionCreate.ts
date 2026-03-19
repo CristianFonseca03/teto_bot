@@ -1,4 +1,4 @@
-import { Events, Interaction } from 'discord.js';
+import { Events, Interaction, MessageFlags } from 'discord.js';
 import { ExtendedClient } from '../index';
 
 export default {
@@ -17,10 +17,14 @@ export default {
     } catch (error) {
       console.error(error);
       const content = 'Ocurrió un error al ejecutar este comando.';
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content, ephemeral: true });
-      } else {
-        await interaction.reply({ content, ephemeral: true });
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+        } else {
+          await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+        }
+      } catch {
+        // La interacción expiró o ya fue respondida; ignorar
       }
     }
   },

@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { togglePause } from '../musicManager';
 
@@ -19,7 +19,7 @@ const pause: Command = {
     const { color, desc } = configs[result];
     await interaction.reply({
       embeds: [new EmbedBuilder().setColor(color).setDescription(desc)],
-      ephemeral: result === 'not_playing',
+      ...(result === 'not_playing' && { flags: MessageFlags.Ephemeral }),
     });
   },
 };

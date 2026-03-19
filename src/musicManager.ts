@@ -217,30 +217,63 @@ export async function addTrack(
   requestedBy: string,
   voiceChannel: VoiceBasedChannel,
   textChannel: Sendable,
-): Promise<{ track: Track; position: number }> {
+): Promise<{ track: Track; position: number; playlistSize?: number }> {
   await ensureConnection(guildId, voiceChannel, textChannel);
 
   const state = getState(guildId);
+
+  let resolvedInput = input;
+  try {
+    const parsed = new URL(input);
+    const videoId = parsed.searchParams.get('v');
+    if (videoId) resolvedInput = `https://www.youtube.com/watch?v=${videoId}`;
+  } catch { /* no es una URL válida, se trata como búsqueda */ }
+
+  const ytValidation = playdl.yt_validate(resolvedInput);
+
+  if (ytValidation === 'playlist') {
+    const playlist = await playdl.playlist_info(input, { incomplete: true });
+    const videos = await playlist.all_videos();
+    if (videos.length === 0) throw new Error('La lista de reproducción está vacía o es privada.');
+
+    const wasIdle =
+      !state.currentTrack &&
+      state.player.state.status === AudioPlayerStatus.Idle;
+
+    for (const video of videos) {
+      const thumbs = video.thumbnails;
+      state.queue.push({
+        title: video.title ?? video.url,
+        url: video.url,
+        type: 'youtube',
+        requestedBy,
+        thumbnail: thumbs?.at(-1)?.url,
+      });
+    }
+
+    if (wasIdle) void playNext(guildId, false);
+
+    return { track: state.queue[0] ?? state.currentTrack!, position: wasIdle ? 0 : state.queue.length - videos.length + 1, playlistSize: videos.length };
+  }
+
   let track: Track;
 
-  const ytValidation = playdl.yt_validate(input);
-
   if (ytValidation === 'video') {
-    const info = await playdl.video_info(input);
+    const info = await playdl.video_info(resolvedInput);
     const thumbs = info.video_details.thumbnails;
     track = {
-      title: info.video_details.title ?? input,
-      url: input,
+      title: info.video_details.title ?? resolvedInput,
+      url: resolvedInput,
       type: 'youtube',
       requestedBy,
       thumbnail: thumbs?.at(-1)?.url,
     };
   } else {
-    const filePath = join(process.cwd(), 'assets', input);
+    const filePath = join(process.cwd(), 'assets', resolvedInput);
     if (existsSync(filePath)) {
-      track = { title: input, url: filePath, type: 'file', requestedBy };
+      track = { title: resolvedInput, url: filePath, type: 'file', requestedBy };
     } else {
-      const results = await playdl.search(input, { limit: 1 });
+      const results = await playdl.search(resolvedInput, { limit: 1 });
       if (results.length === 0)
         throw new Error('No se encontraron resultados para la búsqueda.');
       const thumbs = results[0].thumbnails;
@@ -299,6 +332,13 @@ export function stop(guildId: string) {
   state.queue = [];
   state.currentTrack = null;
   state.player.stop(true);
+}
+
+export function skip(guildId: string): boolean {
+  const state = getState(guildId);
+  if (!state.currentTrack) return false;
+  state.player.stop();
+  return true;
 }
 
 export function cleanQueue(guildId: string) {

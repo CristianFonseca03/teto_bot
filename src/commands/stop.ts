@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { stop, getCurrentTrack, getQueue } from '../musicManager';
 
@@ -13,7 +13,7 @@ const stopCmd: Command = {
     if (!getCurrentTrack(guildId) && getQueue(guildId).length === 0) {
       await interaction.reply({
         embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('No hay nada reproduciéndose.')],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

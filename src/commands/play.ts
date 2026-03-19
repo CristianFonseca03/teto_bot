@@ -2,6 +2,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   GuildMember,
+  MessageFlags,
   SlashCommandBuilder,
 } from 'discord.js';
 import { Command } from '../types';
@@ -33,7 +34,7 @@ const play: Command = {
     if (!voiceChannel) {
       await interaction.reply({
         embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('Debes estar en un canal de voz.')],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -45,7 +46,7 @@ const play: Command = {
     await interaction.deferReply();
 
     try {
-      const { track, position } = await addTrack(
+      const { track, position, playlistSize } = await addTrack(
         interaction.guildId!,
         input,
         interaction.user.username,
@@ -53,7 +54,13 @@ const play: Command = {
         interaction.channel as any,
       );
 
-      if (position === 0) {
+      if (playlistSize !== undefined) {
+        const embed = new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setAuthor({ name: '📋  Playlist añadida a la cola' })
+          .setDescription(`**${playlistSize}** canciones encoladas`);
+        await interaction.editReply({ embeds: [embed] });
+      } else if (position === 0) {
         await interaction.editReply({ embeds: [buildNowPlayingEmbed(track)] });
       } else {
         const embed = buildNowPlayingEmbed(track)

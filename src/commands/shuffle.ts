@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { shuffleQueue, getQueue } from '../musicManager';
 
@@ -14,7 +14,7 @@ const shuffle: Command = {
     if (q.length < 2) {
       await interaction.reply({
         embeds: [new EmbedBuilder().setColor(0xfee75c).setDescription('Necesitas al menos 2 canciones en la cola para mezclar.')],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

@@ -1,6 +1,7 @@
 import {
   ChatInputCommandInteraction,
   EmbedBuilder,
+  MessageFlags,
   SlashCommandBuilder,
 } from 'discord.js';
 import { Command } from '../types';
@@ -27,7 +28,7 @@ const queue: Command = {
     if (!current && tracks.length === 0) {
       await interaction.reply({
         embeds: [new EmbedBuilder().setColor(0xfee75c).setDescription('La cola está vacía.')],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -45,9 +46,18 @@ const queue: Command = {
     }
 
     if (tracks.length > 0) {
-      const list = tracks.slice(0, 10).map(trackLine).join('\n');
-      const extra = tracks.length > 10 ? `\n*...y ${tracks.length - 10} más*` : '';
-      embed.addFields({ name: 'Próximas', value: list + extra });
+      const lines: string[] = [];
+      let total = 0;
+      for (let i = 0; i < tracks.length; i++) {
+        const line = trackLine(tracks[i], i);
+        if (total + line.length + 1 > 900) {
+          lines.push(`*...y ${tracks.length - i} más*`);
+          break;
+        }
+        lines.push(line);
+        total += line.length + 1;
+      }
+      embed.addFields({ name: 'Próximas', value: lines.join('\n') });
     }
 
     embed.setFooter({ text: `${tracks.length} canción(es) en cola` });
