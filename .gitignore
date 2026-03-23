@@ -4,3 +4,8 @@ dist/
 assets/*
 !assets/.gitkeep
 logs/
+
+# Next.js
+web/.next/
+web/out/
+web/node_modules/

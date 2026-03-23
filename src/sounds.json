@@ -1,0 +1,20 @@
+[
+  {
+    "id": "bruh",
+    "name": "Bruh",
+    "url": "https://www.youtube.com/watch?v=2ZIpFytCSVc",
+    "emoji": "😐"
+  },
+  {
+    "id": "ta_da",
+    "name": "Ta-Da",
+    "url": "https://www.youtube.com/watch?v=6zXDo4dL7SU",
+    "emoji": "🎉"
+  },
+  {
+    "id": "metal_pipe",
+    "name": "Metal Pipe",
+    "url": "https://www.youtube.com/watch?v=iDLmYZ5HqgM",
+    "emoji": "🔩"
+  }
+]
