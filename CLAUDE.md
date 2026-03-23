@@ -31,6 +31,10 @@ Crear `.env` basado en `.env.example`:
 | `GIPHY_API_KEY` | No | API key de Giphy para `/gif` (sin ella, el comando devuelve error) |
 | `EXCHANGE_RATE_API_KEY` | No | API key de [ExchangeRate-API](https://www.exchangerate-api.com) para `/convert` (sin ella, devuelve error) |
 | `NODE_ENV` | No | Si es distinto de `production`, usa `pino-pretty` con colores; en producción emite JSON puro |
+| `SOUNDBOARD_PORT` | No | Puerto del servidor HTTP (default: `3000`) |
+| `BASE_URL` | No | URL pública del bot para acceder a la API (default: `http://localhost:3000`); usar ngrok en local o dominio en producción |
+| `SOUNDBOARD_URL` | No | URL pública del frontend del soundboard (default: igual que `BASE_URL`); usar GitHub Pages en producción |
+| `JWT_SECRET` | No | Secreto para firmar tokens JWT (si no se define, se genera aleatoriamente en cada reinicio; persistente entre reinicios si se define) |
 
 ## Arquitectura
 
@@ -262,6 +266,59 @@ Script ejecutado con `npm run deploy`:
 
 Nota: Debe ejecutarse después de cambiar opciones de comandos. Los cambios en `execute()` no requieren redeploy.
 
+### Sistema de Soundboard (src/server/*, web/*)
+
+Interfaz web interactiva para reproducir sonidos del catálogo sin escribir comandos. Usa JWT para autenticación temporal (15 minutos).
+
+**Archivos principales:**
+
+- `src/server/index.ts` — Servidor Fastify con CORS, rate limiting (10 req/min por usuario), headers de seguridad y static files
+- `src/server/auth.ts` — JWT con HS256, TTL 15 min, secret desde `JWT_SECRET` env var (efímero si no se define)
+- `src/server/routes/soundboard.ts` — Endpoints REST:
+  - `GET /api/soundboard/health` — Health check → `{status: 'ok'}`
+  - `GET /api/soundboard/sounds` — Lista sonidos sin URLs → `[{id, name, emoji}]`
+  - `POST /api/soundboard/play` — Requiere `Authorization: Bearer <token>`, body `{soundId}`, reproductor automáticamente
+- `src/commands/soundboard.ts` — Comando `/soundboard` (solo en guilds, requiere canal de voz), genera JWT + URL con hash fragment, responde con enlace efímero
+- `src/sounds.json` — Catálogo de sonidos: `[{id, name, url, emoji}]` con URLs de YouTube
+- `web/` — Next.js 15 (App Router, static export):
+  - Lee token y apiUrl del hash fragment (`#token=xxx&api=yyy`)
+  - Valida token JWT antes de llamar API (detecta expiración)
+  - Valida apiUrl (solo https o http://localhost)
+  - Grid responsive 4/2/1 columnas con emojis twemoji
+  - Pantalla offline si bot no responde al health check
+
+**Flujo:**
+
+1. Usuario ejecuta `/soundboard` en Discord → verifica canal de voz
+2. Genera JWT con `userId` + `guildId`, TTL 15 min
+3. Construye URL: `${SOUNDBOARD_URL}/soundboard/#token=JWT&api=${encodeURIComponent(BASE_URL)}`
+4. Responde con embed efímero con enlace clickeable
+5. Usuario abre enlace → frontend parsea token del hash, valida expiración, valida apiUrl
+6. Frontend fetcha `/api/soundboard/health` para verificar que bot está online
+7. Si online, fetcha `/api/soundboard/sounds` (lista sin URLs por seguridad)
+8. Frontend renderiza grid clickeable con emojis
+9. Al hacer clic en sonido: `POST /api/soundboard/play` con `Authorization: Bearer token` + `{soundId}`
+10. Backend verifica JWT, resuelve sonido, obtiene miembro, verifica canal de voz
+11. Llama `ensureConnection` + `addTrack` del musicManager para reproducir
+12. Frontend recibe respuesta con título del sonido, opcionalmente muestra confirmación
+
+**Seguridad:**
+
+- JWT con TTL 15 min: no es reutilizable indefinidamente
+- Authorization header para llamadas de API
+- Rate limiting: 10 req/min por userId (extraído del JWT) o por IP
+- CORS restringido a `BASE_URL` + `SOUNDBOARD_URL` (evita CSRF desde orígenes arbitrarios)
+- Headers de seguridad: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`
+- apiUrl debe ser https o localhost (evita http en producción)
+- Sonidos no exponen URLs públicas a clientes no autenticados
+
+**Notas de deploy:**
+
+- En desarrollo local: `BASE_URL=http://localhost:3000` o usar ngrok (`ngrok http 3000`)
+- En producción con GitHub Pages: `SOUNDBOARD_URL=https://username.github.io/teto-bot`, `BASE_URL=https://api.dominio.com` (debe ser https)
+- `npm run build` compila TS + construye frontend → `dist/web/` como static files
+- Workflow `.github/workflows/deploy-soundboard.yml` deploya automáticamente a GitHub Pages en push a main cuando cambia `web/` o `src/sounds.json`
+
 ## Estructura de un comando
 
 ```ts
@@ -362,9 +419,30 @@ Servidores MCP opcionales para agentes:
 
 No hay directorio de tests en el proyecto. Las pruebas pueden realizarse manualmente invocando los comandos en Discord durante desarrollo.
 
+## Agregar sonidos al catálogo
+
+Editar `/Users/cristianfonseca03/vscode/teto_bot/src/sounds.json`:
+
+```json
+[
+  { "id": "slug-unico", "name": "Nombre del Sonido", "url": "https://youtube.com/watch?v=...", "emoji": "🎉" }
+]
+```
+
+- `id` — identificador único usado en la API (minúsculas, sin espacios)
+- `name` — nombre legible que aparece en la UI
+- `url` — URL de YouTube (la API de soundboard oculta esta URL a clientes)
+- `emoji` — emoji que aparece en el grid
+
+Después de editar:
+1. `npm run build` para compilar cambios
+2. Hacer push a main → workflow `.github/workflows/deploy-soundboard.yml` redeploya automáticamente a GitHub Pages
+
 ## Notas adicionales
 
 - El collector de botones en `/queue` está restringido al autor de la interacción: solo el usuario que ejecutó el comando puede navegar los botones de paginación
 - Los errores de ejecución de comandos se capturan en try/catch y se devuelven como embeds efímeros rojo; si el token ya expiró, se ignoran
 - `/play` valida que `interaction.channel` exista y tenga método `send` antes de pasarlo a `addTrack`, devolviendo mensaje de error genérico al usuario si algo falla
 - `/gif` y `/convert` tienen timeout de 5s en sus fetches a APIs externas
+- `/soundboard` genera tokens JWT cada vez que se invoca (usuarios diferentes u otro intento obtienen tokens diferentes)
+- El frontend del soundboard se entrega como static files desde `dist/web/` — no necesita servidor Node.js separado, Fastify lo sirve

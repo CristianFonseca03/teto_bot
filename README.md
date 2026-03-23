@@ -50,6 +50,10 @@ Bot de Discord construido con [discord.js](https://discord.js.org/) v14 y TypeSc
 | `JOIN_SOUND_URL` | No | Ruta o URL del audio al entrar a canal | `assets/teto.mp3` o `https://...` |
 | `GIPHY_API_KEY` | No | API key de Giphy | Requerida para `/gif` |
 | `EXCHANGE_RATE_API_KEY` | No | API key de ExchangeRate-API | Requerida para `/convert` |
+| `SOUNDBOARD_PORT` | No | Puerto HTTP del servidor | `3000` (default) |
+| `BASE_URL` | No | URL pública del bot (para acceder a la API) | `http://localhost:3000` o con ngrok |
+| `SOUNDBOARD_URL` | No | URL del frontend (puede diferir de BASE_URL) | Igual que `BASE_URL` o GitHub Pages |
+| `JWT_SECRET` | No | Secreto para firmar tokens JWT | Alfanumérico largo; se genera aleatoriamente si no se define |
 | `NODE_ENV` | No | Modo ejecución | `development` o `production` |
 
 ## Scripts npm
@@ -85,6 +89,7 @@ Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo es necesari
 
 | Comando | Opción | Descripción |
 |---|---|---|
+| `/soundboard` | (ninguna) | Obtén tu enlace personal al soundboard web |
 | `/convert` | `monto` (requerida) | Monto a convertir |
 | `/convert` | `moneda` (requerida) | Moneda de origen (con autocomplete) |
 | `/gif` | `busqueda` (requerida) | Busca GIF aleatorio en Giphy |
@@ -112,6 +117,36 @@ Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo es necesari
 | AKC | AK-cartel | 🐉 | 19.40 |
 
 Las tasas de monedas reales se obtienen de [ExchangeRate-API](https://www.exchangerate-api.com) cada hora. Las monedas meme tienen equivalencia fija.
+
+## Soundboard Web
+
+Interfaz web para reproducir sonidos sin escribir comandos. Requiere estar en un canal de voz.
+
+**Cómo usar:**
+
+1. Ejecuta `/soundboard` en Discord
+2. Haz clic en el enlace del embed ephemeral
+3. Selecciona un sonido del grid para reproducirlo en tu canal
+
+**Características:**
+
+- Interfaz responsive (grid 4/2/1 columnas según pantalla)
+- Tokens JWT con TTL de 15 minutos (seguridad)
+- Emojis Unicode con fallback a twemoji
+- Pantalla de error si el bot está offline
+- Detección automática de token expirado
+
+**Para añadir sonidos:**
+
+Edita `src/sounds.json`:
+
+```json
+[
+  { "id": "bruh", "name": "Bruh", "url": "https://www.youtube.com/watch?v=2ZIpFytCSVc", "emoji": "😐" }
+]
+```
+
+Después: `npm run build` y haz push a main. El workflow automático redeploya a GitHub Pages si está configurado.
 
 ## Archivos de audio locales
 
@@ -197,10 +232,18 @@ El sistema de música gestiona por servidor (guild):
 | yt-dlp | Streaming de YouTube | (binario del sistema) |
 | ffmpeg-static | Transcodificación de audio | ^5.3.0 |
 | opusscript | Codificador Opus (fallback) | ^0.0.8 |
+| fastify | Servidor HTTP para soundboard | ^5.8.2 |
+| jsonwebtoken | JWT para autenticación | ^9.0.3 |
+| @fastify/cors | CORS para soundboard API | ^11.2.0 |
+| @fastify/rate-limit | Rate limiting | ^10.3.0 |
+| @fastify/static | Servir static files (web) | ^9.0.0 |
 | pino | Logging | ^10.3.1 |
 | pino-pretty | Colores en consola (dev) | ^13.1.3 |
 | typescript | Tipado estático | ^5.7.2 |
 | tsx | Ejecución directa de TS | ^4.19.2 |
+| next | Frontend soundboard | ^15.3.0 |
+| react | UI para soundboard | ^19.0.0 |
+| twemoji-parser | Emojis en soundboard | ^14.0.0 |
 
 ## Desarrollo
 
@@ -273,6 +316,17 @@ export default {
 ### `/gif` devuelve error
 - Verificar que `GIPHY_API_KEY` está definida
 - Comprobar que la API key es válida en https://giphy.com/apps
+
+### `/soundboard` no abre o muestra error
+- Verificar que estás en un canal de voz
+- Comprobar que `BASE_URL` y `SOUNDBOARD_URL` están correctamente configuradas
+- En local: usar `ngrok http 3000` y actualizar `BASE_URL=https://xxx.ngrok.io`
+- Si el enlace expira: ejecuta `/soundboard` de nuevo para generar un nuevo token (TTL 15 min)
+
+### El soundboard no se deploya a GitHub Pages
+- Ir a Settings → Pages → Source: GitHub Actions
+- Asegurarse de que `SOUNDBOARD_URL` apunta al repositorio correcto (ej. `https://usuario.github.io/teto-bot`)
+- El workflow solo se ejecuta si `web/` o `src/sounds.json` cambian en push a main
 
 ### Los comandos tardan 1 hora en aparecer
 - Definir `GUILD_ID` en `.env` para registro local instantáneo
