@@ -4,19 +4,16 @@
   "description": "Discord bot built with Discord.js v14 and TypeScript",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && cp src/sounds.json dist/ && npm run build:web",
-    "build:web": "cd web && npm run build",
+    "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "deploy": "tsx src/deploy-commands.ts",
-    "postinstall": "cd web && npm install"
+    "deploy": "tsx src/deploy-commands.ts"
   },
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.1",
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
-    "@fastify/static": "^9.0.0",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "fastify": "^5.8.2",

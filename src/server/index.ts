@@ -1,8 +1,6 @@
 import Fastify from 'fastify';
-import fastifyStatic from '@fastify/static';
 import fastifyCors from '@fastify/cors';
 import fastifyRateLimit from '@fastify/rate-limit';
-import { join } from 'path';
 import { ExtendedClient } from '../index';
 import soundboardRoutes from './routes/soundboard';
 import logger from '../logger';
@@ -40,17 +38,6 @@ export async function startServer(client: ExtendedClient): Promise<void> {
 
   await fastify.register(soundboardRoutes, { client });
 
-  const webDist = join(__dirname, '..', '..', 'dist', 'web');
-  await fastify.register(fastifyStatic, {
-    root: webDist,
-    prefix: '/soundboard/',
-    decorateReply: false,
-  });
-
-  fastify.setNotFoundHandler((_req, reply) => {
-    reply.sendFile('index.html', webDist);
-  });
-
   await fastify.listen({ port, host: '0.0.0.0' });
-  logger.info({ port }, 'Servidor soundboard escuchando');
+  logger.info({ port }, 'Servidor soundboard API escuchando');
 }
