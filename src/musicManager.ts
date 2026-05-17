@@ -126,7 +126,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
           '-o', '-',
           '--quiet',
           '--no-warnings',
-          '--extractor-args', 'youtube:player_client=android',
+          '--extractor-args', 'youtube:player_client=tv_embedded',
           track.url,
         ]);
         proc.stderr.on('data', d => logger.warn('[yt-dlp] %s', d.toString().trim()));
