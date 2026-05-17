@@ -50,7 +50,7 @@ Bot de Discord construido con [discord.js](https://discord.js.org/) v14 y TypeSc
 | `JOIN_SOUND_URL` | No | Ruta o URL del audio al entrar a canal | `assets/teto.mp3` o `https://...` |
 | `GIPHY_API_KEY` | No | API key de Giphy | Requerida para `/gif` |
 | `EXCHANGE_RATE_API_KEY` | No | API key de ExchangeRate-API | Requerida para `/convert` |
-| `NODE_ENV` | No | Modo ejecución | `development` o `production` |
+| `NODE_ENV` | No | Modo ejecución; activa pino-pretty si no es `production` | `development` o `production` |
 
 ## Scripts npm
 
@@ -178,6 +178,7 @@ El sistema de música gestiona por servidor (guild):
 3. Encola y comienza reproducción si estaba idle
 4. Al terminar, pasa automáticamente a siguiente
 5. `/skip` salta canción actual y dispara siguiente automáticamente
+6. Si la cola queda vacía, inicia un timer de 5 minutos; si no se añade nada, el bot abandona el canal automáticamente
 
 **Resolución de entrada:**
 

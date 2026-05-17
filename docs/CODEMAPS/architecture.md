@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-19 (actualizado) | Files scanned: 19 | Token estimate: ~700 -->
+<!-- Generated: 2026-05-16 | Files scanned: 13 | Token estimate: ~550 -->
 
 # Arquitectura — TetoBot
 
@@ -44,10 +44,12 @@ Discord → interactionCreate event
 AudioPlayerStatus.Idle → playNext(notify:true) → embed en textChannel
 
 playNext():
-  spawn yt-dlp --extractor-args "youtube:player_client=android"
+  spawn yt-dlp --extractor-args "youtube:player_client=tv_embedded"
   → createAudioResource(stream, StreamType.Arbitrary)
+  → clearIdleTimer(state)
   → player.play(resource)
   → si MAX_CONSECUTIVE_ERRORS=5: limpia cola y detiene
+  → si queue vacía: startIdleTimer(5 min) → disconnect() si vence
 ```
 
 ## Estado por guild
@@ -62,107 +64,26 @@ GuildState {
   player: AudioPlayer
   volume: number          // 0.0 – 1.0, por defecto 0.75
   textChannel: TextChannel
+  idleTimer: Timeout | null  // auto-disconnect tras 5 min sin reproducir
 }
 ```
 
 ## Archivos clave
 
 ```
-src/index.ts             Punto de entrada, carga dinámica + startServer()
+src/index.ts             Punto de entrada, carga dinámica de comandos y eventos
 src/types.ts             Interfaz Command (data, execute, autocomplete?)
-src/musicManager.ts      Singleton de audio por guild (~400 líneas)
+src/musicManager.ts      Singleton de audio por guild (~450 líneas)
 src/currencies.ts        Lógica de conversión, cache de tasas
 src/logger.ts            Singleton pino, streams consola+archivo
 src/deploy-commands.ts   Registra slash commands en Discord REST API
-src/server/
-  index.ts               Fastify app con CORS, rate limit, static files
-  auth.ts                JWT generateToken() / verifyToken() (HS256, TTL 15m)
-  routes/
-    soundboard.ts        GET /health, GET /sounds, POST /play (autenticado)
-src/sounds.json          Catálogo: [{id, name, url, emoji}]
 src/events/
   interactionCreate.ts   Router de interacciones + logging + error handler
   ready.ts               Log de inicio (once: true)
-src/commands/
-  soundboard.ts          /soundboard → genera JWT, URL con token en hash
-  (otros 12+ comandos)
-web/                     Next.js 15 frontend (App Router, static export)
-  app/
-    page.tsx             Parsea token, valida JWT, renderiza grid
-    layout.tsx           Shell HTML/CSS
-  components/
-    SoundGrid.tsx        Grid responsive con onclick → POST /play
-  styles/
-    globals.css          Tema responsivo, emojis, colores
-  next.config.ts         output:'export', basePath:'/soundboard'
-  types.ts               type Sound = {id, name, emoji}
+src/commands/            13 comandos slash (ver commands.md)
 assets/                  Archivos de audio locales
 logs/                    JSON logs por sesión (excluidos de git)
 dist/                    Build TypeScript compilado
-dist/web/                Build Next.js estático (servido por Fastify)
-.github/workflows/
-  deploy-soundboard.yml  GitHub Actions → GitHub Pages en push a main
-```
-
-## Servidor HTTP (Soundboard)
-
-```
-Fastify escuchando en SOUNDBOARD_PORT (default 3000)
-
-Middleware:
-  CORS: orígenes [BASE_URL, SOUNDBOARD_URL]
-  Rate limit: 10 req/min por userId (extrae del JWT) o IP
-  Security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy
-
-Rutas:
-  GET  /api/soundboard/health      → {status: 'ok'}
-  GET  /api/soundboard/sounds      → [{id, name, emoji}]  (sin URLs)
-  POST /api/soundboard/play        → requiere Authorization: Bearer JWT
-    verifyToken() → valida guildId + userId
-    → resuelve sonido de sounds.json
-    → obtiene miembro + voiceChannel
-    → llama ensureConnection + addTrack de musicManager
-    → responde {success: true, title: ...}
-
-Static files:
-  /soundboard/*  → Next.js build (dist/web/)
-  404 → index.html (SPA)
-```
-
-## Flujo del Soundboard
-
-```
-1. Usuario ejecuta /soundboard en Discord
-   → verifica member.voice.channel (debe estar en voz)
-   → generateToken(userId, guildId)
-   → construye URL: ${SOUNDBOARD_URL}/soundboard/#token=...&api=...
-   → responde embed ephemeral azul con enlace
-
-2. Usuario abre enlace en navegador
-   → Next.js frontend carga
-   → parsea #token=... del hash (elimina del historial)
-   → parseJwtExp(token) → detecta si expiró (15 min)
-   → sanitizeApiUrl(raw) → valida https o localhost
-   → fetch /api/soundboard/health (verifica bot online)
-   → fetch /api/soundboard/sounds (obtiene catálogo)
-   → renderiza grid con SoundGrid(sounds, token, apiUrl)
-
-3. Usuario hace clic en un sonido
-   → onClick → POST /api/soundboard/play
-      body: {soundId}
-      headers: {Authorization: 'Bearer ' + token}
-   → backend verifyToken() → JWT válido?
-   → busca sonido en sounds.json
-   → guild.members.fetch(userId) → obtiene voiceChannel
-   → ensureConnection(guildId, voiceChannel, noop)
-   → addTrack(guildId, sound.url, username, voiceChannel, noop)
-   → responde {success, title}
-   → frontend muestra confirmación
-
-4. Reproductor de música toma el control
-   → musicManager resuelve YouTube URL
-   → spawn yt-dlp, crea AudioResource
-   → player.play() → audio en voz
 ```
 
 ## Intents activos
