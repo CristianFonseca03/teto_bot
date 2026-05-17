@@ -487,11 +487,41 @@ Después de editar:
 1. `npm run build` para compilar cambios
 2. Hacer push a main → workflow `.github/workflows/deploy-soundboard.yml` redeploya automáticamente a GitHub Pages
 
+## Sistema de botones en "Reproduciendo ahora"
+
+El embed "Reproduciendo ahora" incluye tres botones interactivos que se actualizan dinámicamente:
+
+- **⏸ Pausar / ▶ Reanudar** — Custom ID: `np_pause`. Alterna pausa/reanuda y actualiza el botón automáticamente
+- **⏭ Saltar** — Custom ID: `np_skip`. Salta a la siguiente canción
+- **⏹ Detener** — Custom ID: `np_stop`. Detiene la reproducción y vacía la cola
+
+Los botones se renderizan mediante `buildNowPlayingComponents(paused)`, que recibe el estado actual de pausa. Tras actualizar el estado en `togglePause()`, se llama `updateNowPlayingButtons()` para refrescar el embed sin recrearlo.
+
+**Nota:** Los botones se desactivan automáticamente cuando la cola se vacía o la conexión se cierra.
+
+## Nuevos comandos (v1.1.0+)
+
+| Comando | Descripción |
+|---|---|
+| `/loop [mode]` | Establece repetición: `none` (apagado), `track` (canción), `queue` (cola) |
+| `/remove <posición>` | Elimina una canción de la cola por su posición numérica |
+| `/move <desde> <hasta>` | Mueve una canción a otra posición en la cola |
+| `/history [página]` | Muestra el historial de últimas canciones reproducidas (8 por página) |
+| `/8ball [pregunta]` | Magic 8-ball: responde sí/no con emoji aleatorio |
+| `/choose [opción1] [opción2] ...` | Elige aleatoriamente entre las opciones proporcionadas |
+| `/coin` | Lanza una moneda: cara o cruz |
+| `/nowplaying` | Muestra info de la canción actual con botones de control |
+| `/volume [nivel]` | Ajusta el volumen (0-100%) con cambio en tiempo real |
+
+**Comandos de control requieren estar en el mismo canal de voz del bot** (validación automática con `requireSameVoiceChannel()`).
+
 ## Notas adicionales
 
 - El collector de botones en `/queue` está restringido al autor de la interacción: solo el usuario que ejecutó el comando puede navegar los botones de paginación
+- Los botones del embed "Reproduciendo ahora" (`np_pause`, `np_skip`, `np_stop`) están abiertos a cualquier usuario en el servidor
 - Los errores de ejecución de comandos se capturan en try/catch y se devuelven como embeds efímeros rojo; si el token ya expiró, se ignoran
 - `/play` valida que `interaction.channel` exista y tenga método `send` antes de pasarlo a `addTrack`, devolviendo mensaje de error genérico al usuario si algo falla
 - `/gif` y `/convert` tienen timeout de 5s en sus fetches a APIs externas
 - `/soundboard` genera tokens JWT cada vez que se invoca (usuarios diferentes u otro intento obtienen tokens diferentes)
 - El frontend del soundboard se entrega como static files desde `dist/web/` — no necesita servidor Node.js separado, Fastify lo sirve
+- Actividad del bot refleja la canción en reproducción (tipo: `Listening`)
