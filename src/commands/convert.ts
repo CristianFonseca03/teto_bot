@@ -5,6 +5,8 @@ import { CURRENCIES, fetchRates, fromUSD, toUSD } from '../currencies';
 const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 const command: Command = {
+  cooldown: 5,
+
   data: new SlashCommandBuilder()
     .setName('convert')
     .setDescription('Convierte un monto entre monedas reales y meme')

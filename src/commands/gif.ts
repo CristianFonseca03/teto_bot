@@ -18,6 +18,8 @@ interface GiphyResponse {
 }
 
 const gif: Command = {
+  cooldown: 5,
+
   data: new SlashCommandBuilder()
     .setName("gif")
     .setDescription("Busca un GIF aleatorio en Giphy")

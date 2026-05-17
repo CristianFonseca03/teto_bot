@@ -6,9 +6,11 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { Command } from '../types';
-import { addTrack, setVolume, buildNowPlayingEmbed } from '../musicManager';
+import { addTrack, setVolume, buildNowPlayingEmbed, buildNowPlayingComponents } from '../musicManager';
 
 const play: Command = {
+  cooldown: 3,
+
   data: new SlashCommandBuilder()
     .setName('play')
     .setDescription('Reproduce o añade a la cola un audio de YouTube o de assets/')
@@ -69,7 +71,7 @@ const play: Command = {
           .setDescription(`**${playlistSize}** canciones encoladas`);
         await interaction.editReply({ embeds: [embed] });
       } else if (position === 0) {
-        await interaction.editReply({ embeds: [buildNowPlayingEmbed(track)] });
+        await interaction.editReply({ embeds: [buildNowPlayingEmbed(track)], components: [buildNowPlayingComponents()] });
       } else {
         const embed = buildNowPlayingEmbed(track)
           .setColor(0x5865f2)

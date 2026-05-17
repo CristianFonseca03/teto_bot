@@ -5,9 +5,11 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 import { Command } from "../types";
-import { skip, skipTo, getCurrentTrack, getQueue } from "../musicManager";
+import { skip, skipTo, getCurrentTrack, getQueue, getLoopMode } from "../musicManager";
 
 const skipCmd: Command = {
+  cooldown: 2,
+
   data: new SlashCommandBuilder()
     .setName("skip")
     .setDescription(
@@ -41,6 +43,17 @@ const skipCmd: Command = {
     }
 
     if (position === null) {
+      if (getLoopMode(guildId) === 'track') {
+        await interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xfee75c)
+              .setDescription('Estás en modo **loop de canción**. Usa `/loop none` primero para poder saltar.'),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
       skip(guildId);
       await interaction.reply({
         embeds: [

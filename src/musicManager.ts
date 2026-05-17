@@ -9,7 +9,7 @@ import {
   joinVoiceChannel,
   StreamType,
 } from '@discordjs/voice';
-import { EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, Client, EmbedBuilder } from 'discord.js';
 import playdl from 'play-dl';
 import { spawn, ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
@@ -38,9 +38,17 @@ interface GuildState {
   currentTrack: Track | null;
   ytdlpProc: ChildProcess | null;
   idleTimer: ReturnType<typeof setTimeout> | null;
+  loopMode: 'none' | 'track' | 'queue';
+  history: Track[];
+  nowPlayingMsg: any | null;
 }
 
 const states = new Map<string, GuildState>();
+let discordClient: Client | null = null;
+
+export function setClient(client: Client) {
+  discordClient = client;
+}
 
 function createState(guildId: string): GuildState {
   const player = createAudioPlayer();
@@ -53,15 +61,29 @@ function createState(guildId: string): GuildState {
     currentTrack: null,
     ytdlpProc: null,
     idleTimer: null,
+    loopMode: 'none',
+    history: [],
+    nowPlayingMsg: null,
   };
 
   player.on(AudioPlayerStatus.Idle, () => {
+    if (state.currentTrack && state.currentTrack.requestedBy !== 'bot' && state.loopMode !== 'track') {
+      state.history.push(state.currentTrack);
+      if (state.history.length > 50) state.history.shift();
+    }
+    if (state.loopMode === 'track' && state.currentTrack) {
+      state.queue.unshift(state.currentTrack);
+    }
     state.currentTrack = null;
     void playNext(guildId, true);
   });
 
   player.on('error', err => {
     logger.error({ err, guildId }, '[MusicManager] Error en player');
+    if (state.currentTrack && state.currentTrack.requestedBy !== 'bot') {
+      state.history.push(state.currentTrack);
+      if (state.history.length > 50) state.history.shift();
+    }
     state.currentTrack = null;
     void playNext(guildId, true);
   });
@@ -76,11 +98,19 @@ function getState(guildId: string): GuildState {
   return states.get(guildId)!;
 }
 
+export function buildNowPlayingComponents(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('np_pause').setLabel('⏸ Pausar').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('np_skip').setLabel('⏭ Saltar').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('np_stop').setLabel('⏹ Detener').setStyle(ButtonStyle.Danger),
+  );
+}
+
 export function buildNowPlayingEmbed(track: Track): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(0x1db954)
     .setAuthor({ name: '▶  Reproduciendo ahora' })
-    .setTitle(track.title)
+    .setTitle(track.title.slice(0, 256))
     .setFooter({ text: `Pedido por ${track.requestedBy}` });
 
   if (track.url.startsWith('http')) {
@@ -126,6 +156,9 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
     killYtdlp(state);
 
     if (state.queue.length === 0) {
+      discordClient?.user?.setActivity(undefined);
+      await state.nowPlayingMsg?.edit({ components: [] }).catch(() => {});
+      state.nowPlayingMsg = null;
       if (notify) {
         state.textChannel?.send('La cola de reproducción está vacía.').catch(() => {});
       }
@@ -134,6 +167,9 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
     }
 
     const track = state.queue.shift()!;
+    if (state.loopMode === 'queue') {
+      state.queue.push(track);
+    }
     state.currentTrack = track;
 
     try {
@@ -162,11 +198,14 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       resource.volume?.setVolume(state.volume);
       clearIdleTimer(state);
       state.player.play(resource);
+      discordClient?.user?.setActivity(track.title.slice(0, 128), { type: ActivityType.Listening });
 
       if (notify) {
-        state.textChannel
-          ?.send({ embeds: [buildNowPlayingEmbed(track)] })
-          .catch(() => {});
+        await state.nowPlayingMsg?.edit({ components: [] }).catch(() => {});
+        const msg = await state.textChannel
+          ?.send({ embeds: [buildNowPlayingEmbed(track)], components: [buildNowPlayingComponents()] })
+          .catch(() => undefined);
+        state.nowPlayingMsg = msg ?? null;
       }
 
       return;
@@ -182,7 +221,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
         return;
       }
       state.textChannel
-        ?.send(`Error al reproducir **${track.title}**. Saltando...`)
+        ?.send(`Error al reproducir **${track.title.slice(0, 200)}**. Saltando...`)
         .catch(() => {});
       notify = true;
     }
@@ -431,6 +470,9 @@ export function disconnect(guildId: string) {
 
   state.queue = [];
   state.currentTrack = null;
+  state.history = [];
+  state.nowPlayingMsg?.edit({ components: [] }).catch(() => {});
+  state.nowPlayingMsg = null;
   killYtdlp(state);
   clearIdleTimer(state);
   state.player.stop(true);
@@ -451,4 +493,31 @@ export function getConnection(guildId: string): VoiceConnection | null {
 
 export function setVolume(guildId: string, volume: number) {
   getState(guildId).volume = volume;
+}
+
+export function setLoopMode(guildId: string, mode: 'none' | 'track' | 'queue') {
+  getState(guildId).loopMode = mode;
+}
+
+export function getLoopMode(guildId: string): 'none' | 'track' | 'queue' {
+  return getState(guildId).loopMode;
+}
+
+export function getHistory(guildId: string): Track[] {
+  return [...getState(guildId).history].reverse();
+}
+
+export function removeTrack(guildId: string, index: number): Track | null {
+  const queue = getState(guildId).queue;
+  if (index < 0 || index >= queue.length) return null;
+  const [track] = queue.splice(index, 1);
+  return track;
+}
+
+export function moveTrack(guildId: string, from: number, to: number): boolean {
+  const queue = getState(guildId).queue;
+  if (from < 0 || from >= queue.length || to < 0 || to >= queue.length) return false;
+  const [track] = queue.splice(from, 1);
+  queue.splice(to, 0, track);
+  return true;
 }

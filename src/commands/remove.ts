@@ -1,20 +1,20 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
-import { prioritizeTrack, getQueue } from '../musicManager';
+import { removeTrack, getQueue } from '../musicManager';
 
-const priorityCmd: Command = {
-  cooldown: 2,
-
+const remove: Command = {
   data: new SlashCommandBuilder()
-    .setName('priority')
-    .setDescription('Mueve una canción de la cola al inicio para que sea la próxima en reproducirse')
+    .setName('remove')
+    .setDescription('Elimina una canción de la cola')
     .addIntegerOption(opt =>
       opt
         .setName('posicion')
-        .setDescription('Posición de la canción en la cola')
+        .setDescription('Posición de la canción a eliminar')
         .setRequired(true)
         .setMinValue(1),
     ) as SlashCommandBuilder,
+
+  cooldown: 2,
 
   async execute(interaction: ChatInputCommandInteraction) {
     const guildId = interaction.guildId!;
@@ -37,7 +37,7 @@ const priorityCmd: Command = {
       return;
     }
 
-    const track = prioritizeTrack(guildId, position - 1);
+    const track = removeTrack(guildId, position - 1);
     if (!track) {
       await interaction.reply({
         embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('Posición inválida.')],
@@ -46,18 +46,16 @@ const priorityCmd: Command = {
       return;
     }
 
-    const title = track.url.startsWith('http')
-      ? `[${track.title}](${track.url})`
-      : track.title;
+    const title = track.url.startsWith('http') ? `[${track.title}](${track.url})` : track.title;
 
     await interaction.reply({
       embeds: [
         new EmbedBuilder()
-          .setColor(0x1db954)
-          .setDescription(`⬆  ${title} movida al inicio de la cola`),
+          .setColor(0x57f287)
+          .setDescription(`🗑️ Eliminada de la cola: **${title}**`),
       ],
     });
   },
 };
 
-export default priorityCmd;
+export default remove;

@@ -3,6 +3,8 @@ import { Command } from '../types';
 import { shuffleQueue, getQueue } from '../musicManager';
 
 const shuffle: Command = {
+  cooldown: 3,
+
   data: new SlashCommandBuilder()
     .setName('shuffle')
     .setDescription('Mezcla aleatoriamente las canciones en la cola'),
