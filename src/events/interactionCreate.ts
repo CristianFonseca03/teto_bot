@@ -1,7 +1,7 @@
 import { EmbedBuilder, Events, GuildMember, Interaction, MessageFlags } from 'discord.js';
 import { ExtendedClient } from '../index';
 import logger from '../logger';
-import { togglePause, skip, stop, getConnection } from '../musicManager';
+import { togglePause, skip, stop, getConnection, buildNowPlayingComponents } from '../musicManager';
 
 const cooldowns = new Map<string, Map<string, number>>();
 
@@ -35,7 +35,10 @@ export default {
       }
 
       if (customId === 'np_pause') {
-        const result = togglePause(guildId);
+        const result = await togglePause(guildId);
+        if (result !== 'not_playing') {
+          await interaction.message.edit({ components: [buildNowPlayingComponents(result === 'paused')] }).catch(() => {});
+        }
         const desc = result === 'paused' ? '⏸ Pausado' : result === 'resumed' ? '▶ Reanudado' : 'No hay ninguna canción reproduciéndose.';
         const color = result === 'paused' ? 0xfee75c : result === 'resumed' ? 0x1db954 : 0xfee75c;
         await interaction.reply({

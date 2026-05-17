@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
-import { togglePause } from '../musicManager';
+import { togglePause, updateNowPlayingButtons } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const pause: Command = {
   data: new SlashCommandBuilder()
@@ -8,7 +9,10 @@ const pause: Command = {
     .setDescription('Pausa o reanuda la reproducción actual'),
 
   async execute(interaction: ChatInputCommandInteraction) {
-    const result = togglePause(interaction.guildId!);
+    if (!await requireSameVoiceChannel(interaction)) return;
+
+    const result = await togglePause(interaction.guildId!);
+    await updateNowPlayingButtons(interaction.guildId!);
 
     const configs = {
       paused:      { color: 0xfee75c as number, desc: '⏸  Reproducción pausada.' },

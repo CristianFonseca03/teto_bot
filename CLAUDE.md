@@ -60,10 +60,32 @@ export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+  cooldown?: number;
 }
 ```
 
-La propiedad `autocomplete` es opcional y se invoca antes de `execute` cuando el usuario interactúa con el autocomplete de una opción.
+- `autocomplete` — Opcional, se invoca antes de `execute` cuando el usuario interactúa con el autocomplete de una opción
+- `cooldown` — Opcional, tiempo en milisegundos antes de permitir ejecutar el comando nuevamente por usuario
+
+### Utilidades (src/utils/)
+
+**src/utils/voiceCheck.ts** — Helper para validar que usuarios y bot estén en el mismo canal:
+
+```ts
+export async function requireSameVoiceChannel(interaction: ChatInputCommandInteraction): Promise<boolean>
+```
+
+Comprueba:
+- Si el bot está conectado a un canal de voz en el servidor
+- Si el usuario está en el mismo canal que el bot
+- Retorna `false` y responde con embed rojo si no cumple (efímero)
+- Retorna `true` si todo está correcto
+
+Uso en comandos de control (pause, skip, stop, loop, volume, etc.):
+
+```ts
+if (!await requireSameVoiceChannel(interaction)) return;
+```
 
 ### Sistema de audio (src/musicManager.ts)
 
@@ -79,6 +101,12 @@ Módulo singleton que gestiona el estado de reproducción por guild usando un `M
 - `textChannel: Sendable | null` — canal de texto para notificaciones
 - `currentTrack: Track | null` — canción en reproducción
 - `ytdlpProc: ChildProcess | null` — proceso de yt-dlp activo
+- `idleTimer: ReturnType<typeof setTimeout> | null` — timer de desconexión automática (5 minutos sin actividad)
+- `loopMode: 'none' | 'track' | 'queue'` — modo de repetición actual
+- `history: Track[]` — historial de canciones reproducidas (máximo 50)
+- `nowPlayingMsg: any | null` — mensaje del embed "Reproduciendo ahora" para actualizar botones
+- `trackStartedAt: number | null` — timestamp cuando inició la canción actual
+- `currentResource: AudioResource | null` — recurso de audio activo para cambios de volumen
 
 **Track representa una canción:**
 
@@ -89,29 +117,42 @@ export interface Track {
   type: 'youtube' | 'file';
   requestedBy: string;
   thumbnail?: string;
+  duration?: number;
 }
 ```
+
+- `duration` — duración en segundos (opcional, obtenida de metadatos de YouTube)
 
 **Funciones exportadas:**
 
 | Función | Descripción |
 |---|---|
-| `ensureConnection(guildId, voiceChannel, textChannel)` | Crea o reutiliza conexión de voz, reproduce JOIN_SOUND_URL si es nueva |
+| `ensureConnection(guildId, voiceChannel, textChannel)` | Crea o reutiliza conexión de voz, reproduce JOIN_SOUND_URL si es nueva, envía embed de bienvenida |
 | `addTrack(guildId, input, requestedBy, voiceChannel, textChannel)` | Resuelve input (URL/búsqueda/archivo), encola track, retorna posición |
-| `playNext(guildId, notify)` | Reproduce siguiente track, spawn de yt-dlp si es YouTube, notifica si notify=true |
+| `playNext(guildId, notify)` | Reproduce siguiente track, spawn de yt-dlp si es YouTube, notifica si notify=true, actualiza actividad del bot |
 | `getCurrentTrack(guildId)` | Retorna Track actual o null |
 | `getQueue(guildId)` | Retorna copia de la cola |
-| `togglePause(guildId)` | Pausa/reanuda, retorna 'paused' \| 'resumed' \| 'not_playing' |
+| `togglePause(guildId)` | Pausa/reanuda (async), retorna 'paused' \| 'resumed' \| 'not_playing' |
 | `stop(guildId)` | Detiene reproducción y vacía cola |
-| `skip(guildId)` | Salta canción actual (la cola avanza automáticamente) |
+| `skip(guildId)` | Salta canción actual (retorna boolean) |
 | `cleanQueue(guildId)` | Vacía la cola sin detener actual |
 | `prioritizeTrack(guildId, index)` | Mueve track en posición index al inicio |
 | `skipTo(guildId, position)` | Salta a posición específica, retorna tracks saltados y destino |
 | `shuffleQueue(guildId)` | Mezcla la cola con Fisher-Yates |
 | `disconnect(guildId)` | Desconecta, limpia estado, destruye conexión |
 | `getConnection(guildId)` | Retorna VoiceConnection activa o null |
-| `setVolume(guildId, volume)` | Establece volumen (0-1) |
+| `setVolume(guildId, volume)` | Establece volumen (0-1), aplica en tiempo real al recurso actual |
+| `getVolume(guildId)` | Retorna volumen actual |
+| `setLoopMode(guildId, mode)` | Establece modo de repetición ('none', 'track', 'queue') |
+| `getLoopMode(guildId)` | Retorna modo de repetición actual |
+| `getHistory(guildId)` | Retorna historial de canciones reproducidas (orden inverso) |
+| `removeTrack(guildId, index)` | Elimina canción en posición index de la cola |
+| `moveTrack(guildId, from, to)` | Mueve canción de una posición a otra |
+| `getTrackStartedAt(guildId)` | Retorna timestamp cuando inició la canción actual |
+| `isPaused(guildId)` | Retorna si el reproductor está pausado |
+| `updateNowPlayingButtons(guildId)` | Actualiza los botones del embed "Reproduciendo ahora" según estado de pausa |
 | `buildNowPlayingEmbed(track)` | Construye embed verde (0x1db954) con info de track |
+| `buildNowPlayingComponents(paused)` | Construye action row con botones ⏸ Pausar / ⏭ Saltar / ⏹ Detener (parámetro indica estado) |
 
 **Flujo de reproducción:**
 
@@ -123,14 +164,22 @@ export interface Track {
    - Texto libre → búsqueda con `playdl.search()` (límite 1 resultado)
    - Nombre de archivo → busca en `assets/` (ruta relativa a `process.cwd()`)
    - Fix: captura `firstTrack` antes de llamar `playNext` asincrónico (evita race condition en playlists)
-3. Si es conexión nueva, `ensureConnection()` reproduce `JOIN_SOUND_URL` antes de la cola
+3. Si es conexión nueva:
+   - `ensureConnection()` crea la conexión
+   - Envía embed informativo con nombre del canal (color blurple)
+   - Reproduce `JOIN_SOUND_URL` si está definida
 4. Si player está idle, llama `playNext(guildId, false)` (reply ya notifica)
 5. Al terminar cada canción, evento `AudioPlayerStatus.Idle` llama `playNext(guildId, true)` (notifica al canal)
-6. `playNext()` mata proceso yt-dlp anterior, obtiene siguiente track
-7. Para YouTube: spawn `yt-dlp` con argumentos de cliente Android, pasa stdout a `createAudioResource`
+6. `playNext()` mata proceso yt-dlp anterior, obtiene siguiente track:
+   - Si hay loop de track, reencola la canción actual al inicio
+   - Si hay loop de queue, reencola al final
+   - Si hay historial, guarda track en historial (máx. 50 items)
+7. Para YouTube: spawn `yt-dlp` con argumentos de cliente tv_embedded, pasa stdout a `createAudioResource`
 8. Para archivos locales: crea recurso de audio del archivo
-9. Si hay `MAX_CONSECUTIVE_ERRORS` errores seguidos, limpia la cola y detiene
-10. `/skip` llama `player.stop()` sin vaciar cola; `Idle` dispara `playNext()` automáticamente
+9. Aplica volumen al recurso, actualiza actividad del bot, envía embed "Reproduciendo ahora" con botones
+10. Si hay `MAX_CONSECUTIVE_ERRORS` errores seguidos, limpia la cola y detiene
+11. `/skip` llama `player.stop()` sin vaciar cola; `Idle` dispara `playNext()` automáticamente
+12. Bot se desconecta automáticamente tras 5 minutos sin actividad (idle timer)
 
 **Stack de audio:**
 

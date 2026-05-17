@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { prioritizeTrack, getQueue } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const priorityCmd: Command = {
   cooldown: 2,
@@ -17,6 +18,8 @@ const priorityCmd: Command = {
     ) as SlashCommandBuilder,
 
   async execute(interaction: ChatInputCommandInteraction) {
+    if (!await requireSameVoiceChannel(interaction)) return;
+
     const guildId = interaction.guildId!;
     const position = interaction.options.getInteger('posicion', true);
     const queue = getQueue(guildId);

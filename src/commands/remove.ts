@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { removeTrack, getQueue } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const remove: Command = {
   data: new SlashCommandBuilder()
@@ -17,6 +18,8 @@ const remove: Command = {
   cooldown: 2,
 
   async execute(interaction: ChatInputCommandInteraction) {
+    if (!await requireSameVoiceChannel(interaction)) return;
+
     const guildId = interaction.guildId!;
     const position = interaction.options.getInteger('posicion', true);
     const queue = getQueue(guildId);

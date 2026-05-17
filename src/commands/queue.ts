@@ -74,8 +74,12 @@ function buildPage(
       components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...secondRow));
   }
 
+  const totalSeconds = tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+  const durationStr = totalSeconds > 0
+    ? ` · ~${totalSeconds >= 3600 ? `${Math.floor(totalSeconds / 3600)}h ${Math.floor((totalSeconds % 3600) / 60)}m` : `${Math.floor(totalSeconds / 60)}m`}`
+    : '';
   embed.setFooter({
-    text: `Página ${clampedPage + 1}/${totalPages} · ${tracks.length} canción(es) en cola`,
+    text: `Página ${clampedPage + 1}/${totalPages} · ${tracks.length} canción(es)${durationStr}`,
   });
 
   if (tracks.length > PAGE_SIZE) {

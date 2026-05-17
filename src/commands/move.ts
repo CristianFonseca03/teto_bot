@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { moveTrack, getQueue } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const move: Command = {
   data: new SlashCommandBuilder()
@@ -16,6 +17,8 @@ const move: Command = {
   cooldown: 2,
 
   async execute(interaction: ChatInputCommandInteraction) {
+    if (!await requireSameVoiceChannel(interaction)) return;
+
     const guildId = interaction.guildId!;
     const from = interaction.options.getInteger('origen', true);
     const to = interaction.options.getInteger('destino', true);

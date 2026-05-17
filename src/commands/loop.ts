@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { setLoopMode, getLoopMode, getCurrentTrack } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const LABELS: Record<string, string> = {
   none: '⏹ Desactivado',
@@ -25,6 +26,8 @@ const loop: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
+    if (!await requireSameVoiceChannel(interaction)) return;
+
     const guildId = interaction.guildId!;
     const mode = interaction.options.getString('modo', true) as 'none' | 'track' | 'queue';
     const current = getCurrentTrack(guildId);

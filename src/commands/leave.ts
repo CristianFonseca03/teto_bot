@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { Command } from '../types';
 import { disconnect, getConnection } from '../musicManager';
+import { requireSameVoiceChannel } from '../utils/voiceCheck';
 
 const leave: Command = {
   data: new SlashCommandBuilder()
@@ -9,6 +10,8 @@ const leave: Command = {
 
   async execute(interaction: ChatInputCommandInteraction) {
     const guildId = interaction.guildId!;
+
+    if (!await requireSameVoiceChannel(interaction)) return;
 
     if (!getConnection(guildId)) {
       await interaction.reply({

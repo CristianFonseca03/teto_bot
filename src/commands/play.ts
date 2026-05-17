@@ -6,7 +6,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { Command } from '../types';
-import { addTrack, setVolume, buildNowPlayingEmbed, buildNowPlayingComponents } from '../musicManager';
+import { addTrack, setVolume, buildNowPlayingEmbed, buildNowPlayingComponents, getQueue } from '../musicManager';
 
 const play: Command = {
   cooldown: 3,
@@ -42,8 +42,8 @@ const play: Command = {
     }
 
     const input = interaction.options.getString('entrada', true);
-    const volumePercent = interaction.options.getInteger('volumen') ?? 75;
-    setVolume(interaction.guildId!, volumePercent / 100);
+    const volumePercent = interaction.options.getInteger('volumen');
+    if (volumePercent !== null) setVolume(interaction.guildId!, volumePercent / 100);
 
     if (!interaction.channel || !('send' in interaction.channel)) {
       await interaction.reply({
@@ -73,9 +73,10 @@ const play: Command = {
       } else if (position === 0) {
         await interaction.editReply({ embeds: [buildNowPlayingEmbed(track)], components: [buildNowPlayingComponents()] });
       } else {
+        const total = getQueue(interaction.guildId!).length;
         const embed = buildNowPlayingEmbed(track)
           .setColor(0x5865f2)
-          .setAuthor({ name: `📋  Añadido a la cola · #${position}` });
+          .setAuthor({ name: `📋  Añadido a la cola · #${position} de ${total}` });
         await interaction.editReply({ embeds: [embed] });
       }
     } catch (err: unknown) {

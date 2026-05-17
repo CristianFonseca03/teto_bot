@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { Command } from "../types";
 import { skip, skipTo, getCurrentTrack, getQueue, getLoopMode } from "../musicManager";
+import { requireSameVoiceChannel } from "../utils/voiceCheck";
 
 const skipCmd: Command = {
   cooldown: 2,
@@ -26,6 +27,8 @@ const skipCmd: Command = {
     ) as SlashCommandBuilder,
 
   async execute(interaction: ChatInputCommandInteraction) {
+    if (!await requireSameVoiceChannel(interaction)) return;
+
     const guildId = interaction.guildId!;
     const position = interaction.options.getInteger("posicion");
     const current = getCurrentTrack(guildId);

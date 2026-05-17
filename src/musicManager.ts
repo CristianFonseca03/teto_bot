@@ -1,6 +1,7 @@
 import {
   AudioPlayer,
   AudioPlayerStatus,
+  AudioResource,
   VoiceConnection,
   VoiceConnectionStatus,
   createAudioPlayer,
@@ -25,6 +26,7 @@ export interface Track {
   type: 'youtube' | 'file';
   requestedBy: string;
   thumbnail?: string;
+  duration?: number;
 }
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -41,6 +43,8 @@ interface GuildState {
   loopMode: 'none' | 'track' | 'queue';
   history: Track[];
   nowPlayingMsg: any | null;
+  trackStartedAt: number | null;
+  currentResource: AudioResource | null;
 }
 
 const states = new Map<string, GuildState>();
@@ -64,6 +68,8 @@ function createState(guildId: string): GuildState {
     loopMode: 'none',
     history: [],
     nowPlayingMsg: null,
+    trackStartedAt: null,
+    currentResource: null,
   };
 
   player.on(AudioPlayerStatus.Idle, () => {
@@ -98,9 +104,12 @@ function getState(guildId: string): GuildState {
   return states.get(guildId)!;
 }
 
-export function buildNowPlayingComponents(): ActionRowBuilder<ButtonBuilder> {
+export function buildNowPlayingComponents(paused = false): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('np_pause').setLabel('⏸ Pausar').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('np_pause')
+      .setLabel(paused ? '▶ Reanudar' : '⏸ Pausar')
+      .setStyle(paused ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('np_skip').setLabel('⏭ Saltar').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('np_stop').setLabel('⏹ Detener').setStyle(ButtonStyle.Danger),
   );
@@ -171,6 +180,13 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       state.queue.push(track);
     }
     state.currentTrack = track;
+    state.trackStartedAt = null;
+
+    if (state.queue.length === 1 && state.loopMode === 'none') {
+      state.textChannel?.send({
+        embeds: [new EmbedBuilder().setColor(0xfee75c).setDescription('⚠️ Última canción en cola.')],
+      }).catch(() => {});
+    }
 
     try {
       let resource;
@@ -198,6 +214,8 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       resource.volume?.setVolume(state.volume);
       clearIdleTimer(state);
       state.player.play(resource);
+      state.currentResource = resource;
+      state.trackStartedAt = Date.now();
       discordClient?.user?.setActivity(track.title.slice(0, 128), { type: ActivityType.Listening });
 
       if (notify) {
@@ -215,13 +233,13 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       consecutiveErrors++;
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         state.textChannel
-          ?.send('Demasiados errores consecutivos. Deteniendo reproducción.')
+          ?.send({ content: 'Demasiados errores consecutivos. Deteniendo reproducción.', allowedMentions: { parse: [] } })
           .catch(() => {});
         state.queue = [];
         return;
       }
       state.textChannel
-        ?.send(`Error al reproducir **${track.title.slice(0, 200)}**. Saltando...`)
+        ?.send({ content: `Error al reproducir **${track.title.slice(0, 200)}**. Saltando...`, allowedMentions: { parse: [] } })
         .catch(() => {});
       notify = true;
     }
@@ -294,6 +312,9 @@ export async function ensureConnection(
   await entersState(conn, VoiceConnectionStatus.Ready, 10_000);
 
   if (isNew) {
+    textChannel.send({
+      embeds: [new EmbedBuilder().setColor(0x5865f2).setDescription(`Conectado a 🔊 **${voiceChannel.name}**`)],
+    }).catch(() => {});
     playJoinSound(guildId);
   }
 
@@ -337,6 +358,7 @@ export async function addTrack(
         type: 'youtube',
         requestedBy,
         thumbnail: thumbs?.at(-1)?.url,
+        duration: video.durationInSec,
       });
     }
 
@@ -357,6 +379,7 @@ export async function addTrack(
       type: 'youtube',
       requestedBy,
       thumbnail: thumbs?.at(-1)?.url,
+      duration: info.video_details.durationInSec,
     };
   } else {
     const assetsDir = join(process.cwd(), 'assets');
@@ -375,6 +398,7 @@ export async function addTrack(
         type: 'youtube',
         requestedBy,
         thumbnail: thumbs?.at(-1)?.url,
+        duration: results[0].durationInSec,
       };
     }
   }
@@ -401,22 +425,29 @@ export function getQueue(guildId: string): Track[] {
   return [...getState(guildId).queue];
 }
 
-export function togglePause(
+export async function togglePause(
   guildId: string,
-): 'paused' | 'resumed' | 'not_playing' {
+): Promise<'paused' | 'resumed' | 'not_playing'> {
   const state = getState(guildId);
+  let result: 'paused' | 'resumed' | 'not_playing';
 
   if (state.player.state.status === AudioPlayerStatus.Playing) {
     state.player.pause();
-    return 'paused';
-  }
-
-  if (state.player.state.status === AudioPlayerStatus.Paused) {
+    result = 'paused';
+  } else if (state.player.state.status === AudioPlayerStatus.Paused) {
     state.player.unpause();
-    return 'resumed';
+    result = 'resumed';
+  } else {
+    return 'not_playing';
   }
 
-  return 'not_playing';
+  return result;
+}
+
+export async function updateNowPlayingButtons(guildId: string): Promise<void> {
+  const state = getState(guildId);
+  const paused = state.player.state.status === AudioPlayerStatus.Paused;
+  await state.nowPlayingMsg?.edit({ components: [buildNowPlayingComponents(paused)] }).catch(() => {});
 }
 
 export function stop(guildId: string) {
@@ -425,6 +456,8 @@ export function stop(guildId: string) {
   state.currentTrack = null;
   killYtdlp(state);
   clearIdleTimer(state);
+  state.nowPlayingMsg?.edit({ components: [] }).catch(() => {});
+  state.nowPlayingMsg = null;
   state.player.stop(true);
 }
 
@@ -492,7 +525,21 @@ export function getConnection(guildId: string): VoiceConnection | null {
 }
 
 export function setVolume(guildId: string, volume: number) {
-  getState(guildId).volume = volume;
+  const state = getState(guildId);
+  state.volume = volume;
+  state.currentResource?.volume?.setVolume(volume);
+}
+
+export function getVolume(guildId: string): number {
+  return getState(guildId).volume;
+}
+
+export function getTrackStartedAt(guildId: string): number | null {
+  return getState(guildId).trackStartedAt;
+}
+
+export function isPaused(guildId: string): boolean {
+  return getState(guildId).player.state.status === AudioPlayerStatus.Paused;
 }
 
 export function setLoopMode(guildId: string, mode: 'none' | 'track' | 'queue') {
