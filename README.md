@@ -42,6 +42,7 @@ Bot de Discord construido con [discord.js](https://discord.js.org/) v14 y TypeSc
 
 ## Variables de entorno
 
+<!-- AUTO-GENERATED from .env.example -->
 | Variable | Requerida | Descripción | Ejemplo |
 |---|---|---|---|
 | `DISCORD_TOKEN` | Sí | Token del bot | `OTk1NzQ5NDc1OTUzMDc1NzEy...` |
@@ -51,6 +52,7 @@ Bot de Discord construido con [discord.js](https://discord.js.org/) v14 y TypeSc
 | `GIPHY_API_KEY` | No | API key de Giphy | Requerida para `/gif` |
 | `EXCHANGE_RATE_API_KEY` | No | API key de ExchangeRate-API | Requerida para `/convert` |
 | `NODE_ENV` | No | Modo ejecución; activa pino-pretty si no es `production` | `development` o `production` |
+<!-- END AUTO-GENERATED -->
 
 ## Scripts npm
 
@@ -65,31 +67,51 @@ Para desarrollo, usar siempre `npm run dev`. El script `deploy` solo es necesari
 
 ## Comandos disponibles
 
-### Música
+<!-- AUTO-GENERATED from src/commands/ -->
+### 🎵 Reproducción
 
-| Comando | Opción | Descripción |
+| Comando | Opciones | Descripción |
 |---|---|---|
-| `/play` | `entrada` (requerida) | Reproduce o añade a la cola URL de YouTube, búsqueda o archivo local |
-| `/play` | `volumen` (0-100) | Establece volumen (default: 75) |
-| `/skip` | (ninguna) | Salta canción actual |
-| `/skip` | `posicion` | Salta a una posición específica de la cola |
-| `/pause` | (ninguna) | Pausa o reanuda la reproducción |
-| `/stop` | (ninguna) | Detiene reproducción y limpia cola |
-| `/queue` | (ninguna) | Muestra cola con botones de navegación y salto |
-| `/clean` | (ninguna) | Vacía la cola (sin detener actual) |
-| `/leave` | (ninguna) | Desconecta bot del canal de voz |
-| `/priority` | `posicion` (requerida) | Mueve canción al inicio de la cola |
-| `/shuffle` | (ninguna) | Mezcla aleatoriamente la cola |
+| `/play` | `entrada` (req), `volumen` 0-100 (opt) | Reproduce o encola URL de YouTube, búsqueda o archivo local |
+| `/pause` | — | Pausa o reanuda la reproducción |
+| `/skip` | `posicion` (opt) | Salta canción actual o avanza a posición específica |
+| `/stop` | — | Detiene reproducción y limpia cola |
+| `/leave` | — | Desconecta bot del canal de voz |
+| `/nowplaying` | — | Muestra canción actual con barra de progreso y botones de control |
 
-### Utilidad
+### 📋 Cola
 
-| Comando | Opción | Descripción |
+| Comando | Opciones | Descripción |
 |---|---|---|
-| `/convert` | `monto` (requerida) | Monto a convertir |
-| `/convert` | `moneda` (requerida) | Moneda de origen (con autocomplete) |
-| `/gif` | `busqueda` (requerida) | Busca GIF aleatorio en Giphy |
-| `/ping` | (ninguna) | Muestra latencia del bot |
-| `/help` | (ninguna) | Lista todos los comandos |
+| `/queue` | — | Muestra cola paginada con botones de navegación y salto |
+| `/remove` | `posicion` (req) | Elimina una canción de la cola |
+| `/move` | `origen`, `destino` (req) | Mueve una canción a otra posición |
+| `/priority` | `posicion` (req) | Mueve canción al inicio de la cola |
+| `/shuffle` | — | Mezcla aleatoriamente la cola |
+| `/clean` | — | Vacía la cola con confirmación (sin detener actual) |
+| `/loop` | `modo` (req) | Activa repetición: `none`, `track` o `queue` |
+
+### 📊 Historial & Volumen
+
+| Comando | Opciones | Descripción |
+|---|---|---|
+| `/history` | — | Muestra historial de canciones reproducidas en la sesión |
+| `/volume` | `nivel` 0-100 (opt) | Consulta o ajusta el volumen en tiempo real |
+
+### 🛠️ Utilidades
+
+| Comando | Opciones | Descripción |
+|---|---|---|
+| `/convert` | `monto` (req), `moneda` (req, autocomplete) | Convierte entre monedas reales y meme |
+| `/gif` | `busqueda` (req) | Busca GIF aleatorio en Giphy |
+| `/8ball` | `pregunta` (req) | Consulta a la bola 8 mágica |
+| `/choose` | `opciones` (req) | Elige aleatoriamente entre opciones separadas por coma |
+| `/coin` | — | Lanza una moneda (cara o cruz) |
+| `/ping` | — | Muestra latencia del bot |
+| `/help` | — | Lista todos los comandos por categoría |
+<!-- END AUTO-GENERATED -->
+
+> **Nota:** Los comandos de control de audio (`/pause`, `/skip`, `/stop`, `/leave`, `/loop`, `/shuffle`, `/clean`, `/priority`, `/move`, `/remove`, `/volume`) requieren que el usuario esté en el mismo canal de voz que el bot.
 
 ## Monedas soportadas en `/convert`
 
