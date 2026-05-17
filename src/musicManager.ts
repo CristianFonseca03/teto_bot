@@ -27,6 +27,8 @@ export interface Track {
   thumbnail?: string;
 }
 
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
 interface GuildState {
   connection: VoiceConnection | null;
   player: AudioPlayer;
@@ -35,6 +37,7 @@ interface GuildState {
   textChannel: Sendable | null;
   currentTrack: Track | null;
   ytdlpProc: ChildProcess | null;
+  idleTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const states = new Map<string, GuildState>();
@@ -49,6 +52,7 @@ function createState(guildId: string): GuildState {
     textChannel: null,
     currentTrack: null,
     ytdlpProc: null,
+    idleTimer: null,
   };
 
   player.on(AudioPlayerStatus.Idle, () => {
@@ -89,6 +93,21 @@ export function buildNowPlayingEmbed(track: Track): EmbedBuilder {
   return embed;
 }
 
+function startIdleTimer(guildId: string, state: GuildState): void {
+  clearIdleTimer(state);
+  state.idleTimer = setTimeout(() => {
+    state.textChannel?.send('Sin actividad por 5 minutos. Saliendo del canal de voz.').catch(() => {});
+    disconnect(guildId);
+  }, IDLE_TIMEOUT_MS);
+}
+
+function clearIdleTimer(state: GuildState): void {
+  if (state.idleTimer) {
+    clearTimeout(state.idleTimer);
+    state.idleTimer = null;
+  }
+}
+
 function killYtdlp(state: GuildState): void {
   if (state.ytdlpProc) {
     state.ytdlpProc.stdout?.destroy();
@@ -110,6 +129,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       if (notify) {
         state.textChannel?.send('La cola de reproducción está vacía.').catch(() => {});
       }
+      startIdleTimer(guildId, state);
       return;
     }
 
@@ -140,6 +160,7 @@ async function playNext(guildId: string, notify: boolean): Promise<void> {
       }
 
       resource.volume?.setVolume(state.volume);
+      clearIdleTimer(state);
       state.player.play(resource);
 
       if (notify) {
@@ -364,6 +385,7 @@ export function stop(guildId: string) {
   state.queue = [];
   state.currentTrack = null;
   killYtdlp(state);
+  clearIdleTimer(state);
   state.player.stop(true);
 }
 
@@ -410,6 +432,7 @@ export function disconnect(guildId: string) {
   state.queue = [];
   state.currentTrack = null;
   killYtdlp(state);
+  clearIdleTimer(state);
   state.player.stop(true);
 
   if (
